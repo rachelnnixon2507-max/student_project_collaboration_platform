@@ -44,6 +44,20 @@ public class GlobalExceptionHandler {
             .body(ErrorResponse.of(403, "Forbidden", "You do not have permission to perform this action", req.getRequestURI()));
     }
 
+    @ExceptionHandler(org.springframework.security.authentication.BadCredentialsException.class)
+    public ResponseEntity<ErrorResponse> handleBadCredentials(org.springframework.security.authentication.BadCredentialsException ex, HttpServletRequest req) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+            .body(ErrorResponse.of(401, "Unauthorized", "Invalid email or password", req.getRequestURI()));
+    }
+
+    @ExceptionHandler(org.springframework.web.server.ResponseStatusException.class)
+    public ResponseEntity<ErrorResponse> handleResponseStatus(org.springframework.web.server.ResponseStatusException ex, HttpServletRequest req) {
+        int status = ex.getStatusCode().value();
+        String reason = ex.getReason() != null ? ex.getReason() : ex.getMessage();
+        return ResponseEntity.status(ex.getStatusCode())
+            .body(ErrorResponse.of(status, "Authentication Error", reason, req.getRequestURI()));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException ex, HttpServletRequest req) {
         Map<String, String> fieldErrors = new HashMap<>();

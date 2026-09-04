@@ -25,7 +25,10 @@ import {
   loginAdmin,
   logoutAdmin,
   isAuthenticated,
+  isAdminAuthenticated,
   getUser,
+  fetchAdminStatus,
+  setupAdmin,
   fetchAnalyticsLive,
   fetchUsers,
   updateUserStatus,
@@ -113,9 +116,97 @@ function ErrorNotice({ message, onRetry }) {
   );
 }
 
+function AdminSetupForm({ onSetupSuccess }) {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      await setupAdmin({ name, email, password, confirmPassword });
+      onSetupSuccess();
+    } catch (err) {
+      setError(err.message || 'First-time admin setup failed.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ maxWidth: '440px', margin: '40px auto', background: '#fff', padding: '32px', borderRadius: '16px', border: '1px solid #e8edf5', boxShadow: '0 12px 32px rgba(0,0,0,0.04)' }}>
+      <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+        <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#eef2ff', color: '#315bea', display: 'inline-grid', placeItems: 'center', marginBottom: '12px' }}>
+          <ShieldCheck size={26} />
+        </div>
+        <h2 style={{ margin: '0 0 6px', fontSize: '20px' }}>First-Time Admin Setup</h2>
+        <p style={{ margin: 0, color: '#69758a', fontSize: '13px' }}>Create the primary administrator account for this platform</p>
+      </div>
+
+      {error && <ErrorNotice message={error} />}
+
+      <form className="form-grid" onSubmit={handleSubmit} style={{ gridTemplateColumns: '1fr' }}>
+        <label>
+          Admin Full Name
+          <input
+            type="text"
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. System Administrator"
+          />
+        </label>
+        <label>
+          Admin Email
+          <input
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="admin@college.edu"
+          />
+        </label>
+        <label>
+          Password
+          <input
+            type="password"
+            required
+            minLength={6}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Minimum 6 characters"
+          />
+        </label>
+        <label>
+          Confirm Password
+          <input
+            type="password"
+            required
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            placeholder="Re-enter password"
+          />
+        </label>
+        <button className="primary" disabled={loading} style={{ width: '100%', justifyContent: 'center', padding: '12px', marginTop: '8px', background: '#315bea', color: '#fff', border: 0, borderRadius: '9px', fontWeight: 600 }}>
+          {loading ? 'Creating Administrator...' : 'Create Admin Account'}
+        </button>
+      </form>
+    </div>
+  );
+}
+
 function AdminLoginForm({ onLoginSuccess }) {
-  const [email, setEmail] = useState('admin@projecthub.local');
-  const [password, setPassword] = useState('Admin@12345');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -135,7 +226,7 @@ function AdminLoginForm({ onLoginSuccess }) {
 
   return (
     <div style={{ maxWidth: '420px', margin: '40px auto', background: '#fff', padding: '32px', borderRadius: '16px', border: '1px solid #e8edf5', boxShadow: '0 12px 32px rgba(0,0,0,0.04)' }}>
-      <div style={{ textTransform: 'center', textAlign: 'center', marginBottom: '24px' }}>
+      <div style={{ textAlign: 'center', marginBottom: '24px' }}>
         <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#eef2ff', color: '#315bea', display: 'inline-grid', placeItems: 'center', marginBottom: '12px' }}>
           <ShieldCheck size={26} />
         </div>
@@ -153,7 +244,7 @@ function AdminLoginForm({ onLoginSuccess }) {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="admin@projecthub.local"
+            placeholder="admin@college.edu"
           />
         </label>
         <label>
@@ -167,12 +258,9 @@ function AdminLoginForm({ onLoginSuccess }) {
           />
         </label>
         <button className="primary" disabled={loading} style={{ width: '100%', justifyContent: 'center', padding: '12px', marginTop: '8px', background: '#315bea', color: '#fff', border: 0, borderRadius: '9px', fontWeight: 600 }}>
-          {loading ? 'Authenticating with JWT...' : 'Log in as Administrator'}
+          {loading ? 'Authenticating...' : 'Log in as Administrator'}
         </button>
       </form>
-      <div style={{ marginTop: '20px', textAlign: 'center', fontSize: '12px', color: '#8a94a7' }}>
-        Default credentials: <b>admin@projecthub.local</b> / <b>Admin@12345</b>
-      </div>
     </div>
   );
 }
@@ -1117,8 +1205,26 @@ function Reviews() {
 
 export default function Admin() {
   const [tab, setTab] = useState('overview');
-  const [authed, setAuthed] = useState(() => isAuthenticated());
+  const [adminExists, setAdminExists] = useState(true);
+  const [checkingStatus, setCheckingStatus] = useState(true);
+  const [authed, setAuthed] = useState(() => isAdminAuthenticated());
   const currentUser = getUser();
+
+  const checkStatus = async () => {
+    setCheckingStatus(true);
+    try {
+      const res = await fetchAdminStatus();
+      setAdminExists(Boolean(res?.adminExists));
+    } catch (err) {
+      setAdminExists(true);
+    } finally {
+      setCheckingStatus(false);
+    }
+  };
+
+  useEffect(() => {
+    checkStatus();
+  }, []);
 
   const handleLogout = () => {
     logoutAdmin();
@@ -1146,7 +1252,55 @@ export default function Admin() {
     }
   }, [tab]);
 
-  if (!authed) {
+  if (checkingStatus) {
+    return <LoadingSpinner message="Checking system security status..." />;
+  }
+
+  // First time admin setup if no admin exists
+  if (!adminExists) {
+    return (
+      <>
+        <PageHeader
+          title="Initial System Configuration"
+          description="No administrator account exists on this platform. Please complete first-time setup."
+        />
+        <AdminSetupForm
+          onSetupSuccess={() => {
+            setAdminExists(true);
+            setAuthed(true);
+          }}
+        />
+      </>
+    );
+  }
+
+  // Access restricted for non-Admin users
+  if (currentUser && currentUser.role !== 'ADMIN') {
+    return (
+      <>
+        <PageHeader
+          title="Admin Access Restricted"
+          description="Administrative portal controls are restricted to ADMIN users."
+        />
+        <div style={{ maxWidth: '440px', margin: '40px auto', background: '#fff', padding: '32px', borderRadius: '16px', border: '1px solid #f8d7da', textAlign: 'center' }}>
+          <AlertCircle size={36} style={{ color: '#c94b3d', marginBottom: '12px' }} />
+          <h3 style={{ margin: '0 0 8px' }}>Access Denied</h3>
+          <p style={{ color: '#69758a', fontSize: '14px', marginBottom: '20px' }}>
+            You are currently signed in as <b>{currentUser.name}</b> ({currentUser.role}). Administrative features require an <b>ADMIN</b> account.
+          </p>
+          <button
+            onClick={handleLogout}
+            className="primary"
+            style={{ width: '100%', padding: '10px', background: '#c94b3d', color: '#fff', border: 0, borderRadius: '8px', fontWeight: 600 }}
+          >
+            Log Out & Switch Account
+          </button>
+        </div>
+      </>
+    );
+  }
+
+  if (!authed || !currentUser || currentUser.role !== 'ADMIN') {
     return (
       <>
         <PageHeader

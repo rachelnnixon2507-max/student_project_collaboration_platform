@@ -86,10 +86,10 @@
     </dependencies>
 
     <build>
-        <sourceDirectory>src/main/java</sourceDirectory>
+        <sourceDirectory>backend/src/main/java</sourceDirectory>
         <resources>
             <resource>
-                <directory>src/main/resources</directory>
+                <directory>backend/src/main/resources</directory>
             </resource>
         </resources>
         <plugins>

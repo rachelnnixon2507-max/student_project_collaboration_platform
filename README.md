@@ -295,24 +295,16 @@ Content-Type: application/json
 }
 ```
 
-## 11. Admin login (development)
+## 11. First-Time Admin Setup & Authentication
 
-This standalone module now includes a complete admin login flow:
+This module includes a secure authentication flow:
 
-- `POST /api/auth/admin/login` authenticates email + password with Spring Security/BCrypt.
-- Only users whose role is `ADMIN` can receive an admin JWT.
-- JWT contains email, userId and role and is accepted by the existing JWT filter.
-- A development admin account is created automatically at startup if it does not exist.
-- Override the development account with `ADMIN_EMAIL`, `ADMIN_PASSWORD`, and `ADMIN_NAME` environment variables.
-
-Default development credentials when those variables are not set:
-
-```text
-Email:    admin@projecthub.local
-Password: Admin@12345
-```
-
-Change these credentials before using the module outside local development.
+- `GET /api/auth/admin/status` checks if an administrator account has been configured.
+- `POST /api/auth/admin/setup` creates the initial administrator account during first-time setup (disabled once an admin exists).
+- `POST /api/auth/login` and `POST /api/auth/admin/login` authenticate email + password with Spring Security and BCrypt.
+- `POST /api/auth/register/student` and `POST /api/auth/register/faculty` provide public student/faculty registration.
+- Only users whose role is `ADMIN` can access `/api/admin/**` endpoints.
+- JWT contains email, userId, and role.
 
 ## 12. Frontend
 
