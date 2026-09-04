@@ -1,0 +1,39 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: platform
+
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:student_platform}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Kolkata&createDatabaseIfNotExist=true
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:rachel@123}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      # NOTE: use 'validate' once the shared schema is finalized by the team.
+      # 'update' is used here only so this module runs standalone during development.
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.MySQLDialect
+
+# JWT secret must come from an environment variable / secrets manager.
+# Never hard-code the secret (Team Rule #20).
+app:
+  jwt:
+    secret: ${JWT_SECRET:PlatformAdminSecretKeyForJwtTokenGeneration20261234567890!}
+    expiration-ms: ${JWT_EXPIRATION_MS:86400000}   # 24h default
+  admin:
+    # Development-only admin seed. Override with ADMIN_EMAIL/ADMIN_PASSWORD in production.
+    seed-email: ${ADMIN_EMAIL:admin@projecthub.local}
+    seed-password: ${ADMIN_PASSWORD:Admin@12345}
+    seed-name: ${ADMIN_NAME:Platform Administrator}
+    # Number of days without task/progress activity before a project is flagged as "inactive"
+    inactivity-threshold-days: ${INACTIVITY_THRESHOLD_DAYS:7}
+    # Number of days past a task's dueDate (still not COMPLETED) before it counts as "delayed"
+    delay-grace-days: ${DELAY_GRACE_DAYS:0}

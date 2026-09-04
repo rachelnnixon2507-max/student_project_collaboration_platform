@@ -1,0 +1,2 @@
+import PageHeader from '../components/PageHeader'; import EmptyState from '../components/EmptyState';
+export default function Dashboard(){return <><PageHeader title="Dashboard" description="Your collaboration workspace starts here."/><div className="grid four"><div className="stat"><span>My Projects</span><b>—</b></div><div className="stat"><span>Active Teams</span><b>—</b></div><div className="stat"><span>Pending Tasks</span><b>—</b></div><div className="stat"><span>Notifications</span><b>—</b></div></div><EmptyState title="Dashboard modules will appear here"/></>}

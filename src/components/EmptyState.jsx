@@ -1,0 +1,1 @@
+export default function EmptyState({title='No content yet',text='This section is ready for the assigned team member to implement.'}){return <div className="empty-state"><div className="empty-icon">+</div><h3>{title}</h3><p>{text}</p></div>}

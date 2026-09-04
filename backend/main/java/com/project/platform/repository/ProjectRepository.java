@@ -1,0 +1,12 @@
+package com.project.platform.repository;
+
+import com.project.platform.entity.Project;
+import com.project.platform.entity.enums.ProjectStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface ProjectRepository extends JpaRepository<Project, Long> {
+    Page<Project> findByStatus(ProjectStatus status, Pageable pageable);
+    long countByStatus(ProjectStatus status);
+}

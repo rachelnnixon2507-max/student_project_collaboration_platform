@@ -1,0 +1,28 @@
+# Operating System files
+.DS_Store
+Thumbs.db
+
+# Node / React dependencies & build outputs
+node_modules/
+dist/
+dist-ssr/
+*.local
+.vite/
+
+# Maven / Java build outputs
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.log
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# Gemini / Antigravity workspace files
+.gemini/
