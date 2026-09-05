@@ -3,14 +3,15 @@
 Thumbs.db
 
 # Node / React dependencies & build outputs
-node_modules/
-dist/
-dist-ssr/
+**/node_modules/
+**/dist/
+**/dist-ssr/
 *.local
 .vite/
+**/.vite/
 
 # Maven / Java build outputs
-target/
+**/target/
 *.class
 *.jar
 *.war
