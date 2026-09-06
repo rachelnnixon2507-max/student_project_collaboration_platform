@@ -27,3 +27,9 @@ Thumbs.db
 
 # Gemini / Antigravity workspace files
 .gemini/
+
+# Environment variable files
+.env
+.env.*
+!.env.example
+

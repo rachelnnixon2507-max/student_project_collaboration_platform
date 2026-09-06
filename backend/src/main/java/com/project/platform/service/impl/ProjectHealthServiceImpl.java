@@ -47,8 +47,6 @@ public class ProjectHealthServiceImpl implements ProjectHealthService {
         // Projects with at least one overdue, unfinished task.
         List<Task> overdueTasks = taskRepository.findByStatusNotAndDueDateBefore(TaskStatus.COMPLETED, delayCutoff);
 
-        List<ProjectProgress> staleProgress = projectProgressRepository.findByLastActivityAtBefore(inactivityCutoff);
-
         List<Project> activeProjects = projectRepository.findAll().stream()
             .filter(p -> ACTIVE_STATUSES.contains(p.getStatus()))
             .collect(Collectors.toList());
@@ -62,11 +60,17 @@ public class ProjectHealthServiceImpl implements ProjectHealthService {
 
             boolean delayed = !projectOverdueTasks.isEmpty();
 
-            ProjectProgress progress = staleProgress.stream()
-                .filter(pp -> pp.getProjectId().equals(project.getId()))
-                .findFirst()
-                .orElse(null);
-            boolean inactive = progress != null;
+            ProjectProgress progress = projectProgressRepository.findByProjectId(project.getId()).orElse(null);
+            LocalDateTime lastActivity;
+            boolean inactive;
+
+            if (progress != null) {
+                lastActivity = progress.getLastActivityAt();
+                inactive = (lastActivity == null || lastActivity.isBefore(inactivityCutoff));
+            } else {
+                lastActivity = project.getCreatedAt();
+                inactive = (lastActivity == null || lastActivity.isBefore(inactivityCutoff));
+            }
 
             if (delayed || inactive) {
                 results.add(new DelayedProjectResponse(
@@ -75,7 +79,7 @@ public class ProjectHealthServiceImpl implements ProjectHealthService {
                     delayed,
                     inactive,
                     projectOverdueTasks.size(),
-                    progress != null ? progress.getLastActivityAt() : null,
+                    lastActivity,
                     projectOverdueTasks.stream().map(Task::getId).toList()
                 ));
             }
