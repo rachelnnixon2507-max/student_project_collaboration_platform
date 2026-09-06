@@ -34,7 +34,7 @@ public class AdminSeeder {
             // Seed initial sample students, faculty, admin if database has zero users
             if (userRepository.count() == 0) {
                 // Admin
-                User admin = userRepository.save(User.builder().name("System Admin").email("admin@college.edu").password(passwordEncoder.encode("Admin@123")).role(Role.ADMIN).accountStatus(AccountStatus.ACTIVE).build());
+                userRepository.save(User.builder().name("System Admin").email("admin@college.edu").password(passwordEncoder.encode("Admin@123")).role(Role.ADMIN).accountStatus(AccountStatus.ACTIVE).build());
 
                 // Students
                 User s1 = userRepository.save(User.builder().name("Ananya Menon").email("ananya@college.edu").password(passwordEncoder.encode("Student@123")).role(Role.STUDENT).accountStatus(AccountStatus.ACTIVE).build());

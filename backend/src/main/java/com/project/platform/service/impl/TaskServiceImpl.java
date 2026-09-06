@@ -8,7 +8,6 @@ import com.project.platform.entity.Project;
 import com.project.platform.entity.Task;
 import com.project.platform.entity.User;
 import com.project.platform.entity.enums.TaskStatus;
-import com.project.platform.exception.BadRequestException;
 import com.project.platform.exception.ResourceNotFoundException;
 import com.project.platform.repository.ProjectRepository;
 import com.project.platform.repository.TaskRepository;

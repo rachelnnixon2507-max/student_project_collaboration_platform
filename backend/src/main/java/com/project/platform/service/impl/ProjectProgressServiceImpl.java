@@ -20,7 +20,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * Implementation of ProjectProgressService.
@@ -129,8 +128,9 @@ public class ProjectProgressServiceImpl implements ProjectProgressService {
 
     @Override
     public ProjectProgress recalculateAndSaveProgress(Long projectId) {
-        Project project = projectRepository.findById(projectId)
-                .orElseThrow(() -> new ResourceNotFoundException("Project not found with id: " + projectId));
+        if (!projectRepository.existsById(projectId)) {
+            throw new ResourceNotFoundException("Project not found with id: " + projectId);
+        }
 
         ProjectProgress progress = findOrCreateProgress(projectId);
         List<Task> tasks = taskRepository.findByProjectId(projectId);

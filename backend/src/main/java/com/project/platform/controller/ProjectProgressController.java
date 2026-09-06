@@ -3,7 +3,6 @@ package com.project.platform.controller;
 import com.project.platform.dto.request.UpdateProjectProgressRequest;
 import com.project.platform.dto.response.ApiResponse;
 import com.project.platform.dto.response.ProjectProgressDetailsResponse;
-import com.project.platform.entity.ProjectProgress;
 import com.project.platform.service.ProjectProgressService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

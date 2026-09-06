@@ -104,11 +104,11 @@ public class AiMatchingServiceImpl implements AiMatchingService {
 
     @Override
     public List<AiProjectMatchResponse> matchProjectsForStudent(Long studentId, Integer maxResults) {
-        User student = userRepository.findById(studentId)
-                .orElseThrow(() -> new ResourceNotFoundException("Student not found with id: " + studentId));
+        if (!userRepository.existsById(studentId)) {
+            throw new ResourceNotFoundException("Student not found with id: " + studentId);
+        }
 
         StudentProfile profile = studentProfileRepository.findByUserId(studentId).orElse(null);
-        List<String> studentSkills = parseSkills(profile != null ? profile.getSkills() : "");
 
         // Projects student is already part of
         Set<Long> joinedProjectIds = projectMemberRepository.findByStudentId(studentId).stream()

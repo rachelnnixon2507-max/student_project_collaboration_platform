@@ -4,11 +4,9 @@ import com.project.platform.dto.request.AiMatchCustomRequest;
 import com.project.platform.dto.response.AiCandidateMatchResponse;
 import com.project.platform.dto.response.AiProjectMatchResponse;
 import com.project.platform.entity.Project;
-import com.project.platform.entity.ProjectMember;
 import com.project.platform.entity.StudentProfile;
 import com.project.platform.entity.User;
 import com.project.platform.entity.enums.CompatibilityLevel;
-import com.project.platform.entity.enums.ProjectMemberRole;
 import com.project.platform.entity.enums.ProjectStatus;
 import com.project.platform.entity.enums.Role;
 import com.project.platform.repository.ProjectMemberRepository;
@@ -29,7 +27,6 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)

@@ -1,7 +1,6 @@
 package com.project.platform.service;
 
 import com.project.platform.dto.request.SendMessageRequest;
-import com.project.platform.dto.response.ConversationSummaryResponse;
 import com.project.platform.dto.response.MessageResponse;
 import com.project.platform.entity.Message;
 import com.project.platform.entity.Project;

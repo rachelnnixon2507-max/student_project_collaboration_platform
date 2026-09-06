@@ -2,11 +2,14 @@ package com.project.platform.repository;
 
 import com.project.platform.entity.TeamMemberReview;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
 
+@Repository
 public interface TeamMemberReviewRepository extends JpaRepository<TeamMemberReview, Long> {
+
     List<TeamMemberReview> findByRevieweeId(Long revieweeId);
     List<TeamMemberReview> findByProjectId(Long projectId);
     Optional<TeamMemberReview> findByProjectIdAndReviewerIdAndRevieweeId(Long projectId, Long reviewerId, Long revieweeId);
