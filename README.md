@@ -1,14 +1,14 @@
 # Member 4 Module — Admin & System
 
-Student Project Collaboration Platform — backend module implementing:
+Student Project Collaboration Platform — Full-stack module (Spring Boot backend & React Vite frontend) implementing:
 
-1. Manage Students & Faculty
-2. Manage Projects
-3. Manage Roles & Permissions
-4. Platform Analytics
-5. Send Announcements
-6. Detect Delayed/Inactive Projects
-7. Rate & Review Team Members
+1. **Manage Students & Faculty**: View list, view details, suspend/activate accounts, delete user records.
+2. **Manage Projects**: View all projects, inspect details, force update project status (e.g. IN_PROGRESS, COMPLETED, ARCHIVED), delete projects.
+3. **Manage Roles & Permissions**: Dynamic permission matrix for roles (STUDENT, FACULTY, ADMIN), assign user roles, update role permissions.
+4. **Platform Analytics**: Real-time metrics (active users, total projects, completed tasks, review averages) and snapshot history.
+5. **Send Announcements**: System-wide notifications broadcasted by scope (ALL, STUDENTS, FACULTY, PROJECT) or target project.
+6. **Detect Delayed/Inactive Projects**: Flag projects with overdue tasks or inactive periods to trigger admin interventions.
+7. **Rate & Review Team Members**: Peer reviews and ratings for team collaboration with computed user score summaries.
 
 > **IMPORTANT — read before merging into the shared repo:** this module was
 > built **standalone**, without access to the team's actual shared codebase
@@ -21,179 +21,169 @@ Student Project Collaboration Platform — backend module implementing:
 
 ---
 
-## 1. Files created
+## 1. Prerequisites & Prerequisites Setup
 
-```
-pom.xml
-src/main/resources/application.yml
-src/main/java/com/project/platform/PlatformApplication.java
+- **Java JDK**: Version 17 (Required by Spring Boot 3.3.x)
+- **Apache Maven**: Version 3.8+
+- **Node.js**: Version 18+ & npm
+- **Database**: MySQL 8.x (configured in `application.yml` or using H2/MySQL dev database)
 
-entity/
-  User.java                    (PLACEHOLDER — replace with real entity)
-  StudentProfile.java          (PLACEHOLDER — replace with real entity)
-  FacultyProfile.java          (PLACEHOLDER — replace with real entity)
-  Project.java                 (PLACEHOLDER — replace with real entity)
-  ProjectMember.java           (PLACEHOLDER — replace with real entity)
-  Task.java                    (PLACEHOLDER — replace with real entity)
-  ProjectProgress.java         (PLACEHOLDER — replace with real entity)
-  Announcement.java            (OWNED by Member 4)
-  PlatformAnalytics.java       (OWNED by Member 4)
-  TeamMemberReview.java        (OWNED by Member 4)
-
-entity/enums/
-  Role.java, ProjectStatus.java, TaskStatus.java,
-  ProjectMemberRole.java, AnnouncementScope.java, AccountStatus.java
-
-repository/
-  UserRepository, StudentProfileRepository, FacultyProfileRepository,
-  ProjectRepository, ProjectMemberRepository, TaskRepository,
-  ProjectProgressRepository, AnnouncementRepository,
-  PlatformAnalyticsRepository, TeamMemberReviewRepository
-
-dto/request/
-  UpdateAccountStatusRequest, UpdateUserRoleRequest,
-  AdminUpdateProjectStatusRequest, CreateAnnouncementRequest,
-  CreateTeamMemberReviewRequest
-
-dto/response/
-  ApiResponse, UserAdminResponse, StudentAdminResponse,
-  FacultyAdminResponse, ProjectAdminResponse, AnnouncementResponse,
-  PlatformAnalyticsResponse, DelayedProjectResponse,
-  TeamMemberReviewResponse, RevieweeRatingSummaryResponse
-
-service/ + service/impl/
-  AdminUserService(+Impl), AdminProjectService(+Impl),
-  AnnouncementService(+Impl), PlatformAnalyticsService(+Impl),
-  ProjectHealthService(+Impl), TeamMemberReviewService(+Impl)
-
-controller/
-  AdminUserController, AdminProjectController, AnnouncementController,
-  AnalyticsController, ProjectHealthController, TeamMemberReviewController
-
-exception/
-  ResourceNotFoundException, BadRequestException, DuplicateResourceException,
-  ErrorResponse, GlobalExceptionHandler
-
-security/
-  UserPrincipal, CustomUserDetailsService, JwtUtil, JwtAuthenticationFilter
-
-config/
-  SecurityConfig
+### Java 17 Setup (macOS)
+If your system defaults to Java 25 or Java 26, switch `JAVA_HOME` to Java 17 before building:
+```bash
+export JAVA_HOME=$(/usr/libexec/java_home -v 17)
+java -version  # Should display 17.x
 ```
 
-## 2. Files modified
+---
 
-None — this module was built as a fresh standalone project (no shared repo
-was available). When merging, the files below are the ones that touch
-**shared** concerns and need review (see section 7).
+## 2. Quick Start Guide
 
-## 3. Database tables added
+### Running Backend (Spring Boot)
+```bash
+cd backend
+export JAVA_HOME=$(/usr/libexec/java_home -v 17)
+mvn clean spring-boot:run
+```
+Backend server will start at: `http://localhost:8080`
 
-Owned by this module (safe to add as-is):
-- `announcements`
-- `platform_analytics`
-- `team_member_reviews`
+### Running Frontend (React + Vite)
+```bash
+cd frontend
+npm install
+npm run dev
+```
+Frontend development server will start at: `http://localhost:5173`
 
-Placeholder tables (only for standalone compilation — do **not** create
-these if the equivalents already exist in the shared schema):
-- `users` (adds a `account_status` column not in the original spec — needs
-  team approval, see section 7)
-- `student_profiles`, `faculty_profiles`, `projects`, `project_members`,
-  `tasks`, `project_progress`
+---
 
-## 4. API endpoints added
+## 3. Directory & File Structure
 
+```
+.
+├── pom.xml                                 # Root Maven parent POM
+├── backend/
+│   ├── pom.xml                             # Backend Maven configuration
+│   └── src/main/java/com/project/platform/
+│       ├── PlatformApplication.java        # Main Spring Boot entry point
+│       ├── config/                         # SecurityConfig, CorsConfig
+│       ├── controller/                     # REST API Controllers
+│       │   ├── AdminUserController.java
+│       │   ├── AdminProjectController.java
+│       │   ├── AnalyticsController.java
+│       │   ├── AnnouncementController.java
+│       │   ├── AuthController.java
+│       │   ├── ProjectHealthController.java
+│       │   ├── RolePermissionController.java
+│       │   └── TeamMemberReviewController.java
+│       ├── dto/                            # Request & Response DTOs
+│       ├── entity/                         # Domain Entities & Enums
+│       ├── exception/                      # Exception Handling & Error responses
+│       ├── repository/                     # Spring Data JPA Repositories
+│       ├── security/                       # JWT Utils, UserDetailsService, Auth Filters
+│       ├── service/                        # Business Logic Interfaces & Implementations
+│       └── util/                           # Utilities & Seeders
+└── frontend/                               # React + Vite UI
+    ├── package.json
+    ├── vite.config.js
+    └── src/
+        ├── components/                     # Reusable UI components & layouts
+        ├── pages/                          # Admin Dashboard, Login, Management Views
+        └── services/                       # Axios API client setup & endpoint calls
+```
+
+---
+
+## 4. Database Schema
+
+### Module-Owned Tables (Safe to add directly)
+- `announcements` — System and project announcements
+- `platform_analytics` — Historical analytics snapshots
+- `team_member_reviews` — Peer reviews and star ratings
+- `role_permissions` — Dynamic permissions matrix for roles
+
+### Placeholder Tables (Required for standalone execution)
+- `users` (includes `account_status` column)
+- `student_profiles`, `faculty_profiles`, `projects`, `project_members`, `tasks`, `project_progress`
+
+---
+
+## 5. API Endpoints Reference
+
+### Authentication & Setup
 | Method | Endpoint | Feature | Access |
 |---|---|---|---|
-| GET | `/api/admin/users` | 1/3 | ADMIN |
-| GET | `/api/admin/users/students` | 1 | ADMIN |
-| GET | `/api/admin/users/faculty` | 1 | ADMIN |
-| GET | `/api/admin/users/{userId}` | 1 | ADMIN |
-| PATCH | `/api/admin/users/{userId}/status` | 1 | ADMIN |
-| PATCH | `/api/admin/users/{userId}/role` | 3 | ADMIN |
-| DELETE | `/api/admin/users/{userId}` | 1 | ADMIN |
-| GET | `/api/admin/projects` | 2 | ADMIN |
-| GET | `/api/admin/projects/{projectId}` | 2 | ADMIN |
-| PATCH | `/api/admin/projects/{projectId}/status` | 2 | ADMIN |
-| DELETE | `/api/admin/projects/{projectId}` | 2 | ADMIN |
-| GET | `/api/admin/projects/health/flagged` | 6 | ADMIN |
-| GET | `/api/analytics/live` | 4 | ADMIN |
-| POST | `/api/analytics/snapshot` | 4 | ADMIN |
-| GET | `/api/analytics/snapshot/latest` | 4 | ADMIN |
-| POST | `/api/announcements` | 5 | ADMIN |
-| GET | `/api/announcements` | 5 | any authenticated user |
-| GET | `/api/announcements/project/{projectId}` | 5 | any authenticated user |
-| GET | `/api/announcements/{id}` | 5 | any authenticated user |
-| DELETE | `/api/announcements/{id}` | 5 | ADMIN |
-| POST | `/api/reviews` | 7 | STUDENT |
-| GET | `/api/reviews/project/{projectId}` | 7 | STUDENT/FACULTY/ADMIN |
-| GET | `/api/reviews/student/{studentUserId}/summary` | 7 | STUDENT/FACULTY/ADMIN |
+| GET | `/api/auth/admin/status` | Check if initial admin account exists | Public |
+| POST | `/api/auth/admin/setup` | Create initial admin account | Public (First time) |
+| POST | `/api/auth/login` | General login | Public |
+| POST | `/api/auth/admin/login` | Admin dedicated login | Public |
+| POST | `/api/auth/student/login` | Student dedicated login | Public |
+| POST | `/api/auth/faculty/login` | Faculty dedicated login | Public |
+| POST | `/api/auth/register/student` | Register student profile | Public |
+| POST | `/api/auth/register/faculty` | Register faculty profile | Public |
 
-## 5. Existing APIs affected
+### User Management & Roles (Features 1 & 3)
+| Method | Endpoint | Feature | Access |
+|---|---|---|---|
+| GET | `/api/admin/users` | List all users (paginated) | ADMIN |
+| GET | `/api/admin/users/students` | List student profiles | ADMIN |
+| GET | `/api/admin/users/faculty` | List faculty profiles | ADMIN |
+| GET | `/api/admin/users/{userId}` | Get single user details | ADMIN |
+| PATCH | `/api/admin/users/{userId}/status` | Update account status (ACTIVE/SUSPENDED) | ADMIN |
+| PATCH | `/api/admin/users/{userId}/role` | Update user role | ADMIN |
+| DELETE | `/api/admin/users/{userId}` | Delete user record | ADMIN |
+| GET | `/api/admin/roles/permissions` | Get all role permission mappings | ADMIN |
+| GET | `/api/admin/roles/{role}/permissions` | Get permissions for specific role | ADMIN |
+| PUT | `/api/admin/roles/{role}/permissions` | Update permission list for a role | ADMIN |
 
-None directly. If another member's `/api/auth/**` login endpoint issues
-JWTs, it must call `JwtUtil.generateToken(email, userId, role)` from this
-module (see section 9) so tokens are compatible with this security config.
+### Project Management & Health (Features 2 & 6)
+| Method | Endpoint | Feature | Access |
+|---|---|---|---|
+| GET | `/api/admin/projects` | List all projects | ADMIN |
+| GET | `/api/admin/projects/{projectId}` | Get project details | ADMIN |
+| PATCH | `/api/admin/projects/{projectId}/status` | Force update project status | ADMIN |
+| DELETE | `/api/admin/projects/{projectId}` | Delete project | ADMIN |
+| GET | `/api/admin/projects/health/flagged` | Get delayed or inactive projects | ADMIN |
 
-## 6. Dependencies added (pom.xml)
+### Platform Analytics (Feature 4)
+| Method | Endpoint | Feature | Access |
+|---|---|---|---|
+| GET | `/api/analytics/live` | Get live real-time platform metrics | ADMIN |
+| POST | `/api/analytics/snapshot` | Trigger historical analytics snapshot | ADMIN |
+| GET | `/api/analytics/snapshot/latest` | Retrieve latest analytics snapshot | ADMIN |
 
-- `spring-boot-starter-web`, `spring-boot-starter-data-jpa`,
-  `spring-boot-starter-security`, `spring-boot-starter-validation`
-- `mysql-connector-j`
-- `io.jsonwebtoken:jjwt-api/impl/jackson:0.11.5` (JWT)
-- `lombok`
+### System Announcements (Feature 5)
+| Method | Endpoint | Feature | Access |
+|---|---|---|---|
+| POST | `/api/announcements` | Create/broadcast announcement | ADMIN |
+| GET | `/api/announcements` | Get all broadcast announcements | Authenticated |
+| GET | `/api/announcements/project/{projectId}` | Get project-specific announcements | Authenticated |
+| GET | `/api/announcements/{id}` | Get announcement by ID | Authenticated |
+| DELETE | `/api/announcements/{id}` | Delete announcement | ADMIN |
 
-## 7. Shared files that need team approval
+### Peer Reviews & Ratings (Feature 7)
+| Method | Endpoint | Feature | Access |
+|---|---|---|---|
+| POST | `/api/reviews` | Submit peer review for team member | STUDENT |
+| GET | `/api/reviews/project/{projectId}` | Get reviews for a project | STUDENT/FACULTY/ADMIN |
+| GET | `/api/reviews/student/{studentUserId}/summary` | Get rating summary for a student | STUDENT/FACULTY/ADMIN |
 
-- **`entity/User.java`** — added `accountStatus` (enum `AccountStatus`:
-  ACTIVE/SUSPENDED/DEACTIVATED) to support enable/suspend from
-  "Manage Students & Faculty". **Needs approval** before adding to the real
-  shared `User` entity (Team Rule #22).
-- **`config/SecurityConfig.java`** — if another member already has a
-  security config, the route rules here (`/api/admin/**` → ADMIN,
-  `/api/announcements/**`, `/api/analytics/**`, `/api/reviews/**`) must be
-  merged into it rather than duplicated.
-- **`exception/GlobalExceptionHandler.java`** — same merge note if one
-  already exists.
+---
 
-## 8. Database migration required
+## 6. Shared Files & Merge Guidelines
 
-Yes — run/generate a migration (Flyway/Liquibase, or `ddl-auto: update` in
-dev) to create:
-- `announcements`, `platform_analytics`, `team_member_reviews`
-- `ALTER TABLE users ADD COLUMN account_status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE'`
-  (pending approval per section 7)
+When integrating into the main project repo:
+1. **`entity/User.java`**: Ensure `accountStatus` (ACTIVE / SUSPENDED / DEACTIVATED) is supported in the team's shared user entity.
+2. **`config/SecurityConfig.java`**: Merge route permissions into the existing team security configuration.
+3. **`exception/GlobalExceptionHandler.java`**: Combine exception handlers into the common exception handling infrastructure.
+4. **JWT Configuration**: Set `JWT_SECRET` in application properties/environment variables for JWT signing and verification.
 
-## 9. How another developer integrates this module
+---
 
-1. Copy `entity/enums/*`, `entity/Announcement.java`,
-   `entity/PlatformAnalytics.java`, `entity/TeamMemberReview.java`, their
-   repositories, services, and controllers into the shared repo unchanged.
-2. **Delete** the placeholder entities/repositories in this module
-   (`User`, `StudentProfile`, `FacultyProfile`, `Project`, `ProjectMember`,
-   `Task`, `ProjectProgress`) and repoint all imports in this module's
-   services/controllers to the team's real classes in the same packages
-   (`com.project.platform.entity` / `com.project.platform.repository`) —
-   no code changes needed elsewhere since package/class names match the
-   team's naming convention.
-3. If the real `User` entity has no `accountStatus`-equivalent field, get
-   approval and add it (see section 7), or adapt
-   `AdminUserServiceImpl`/`UserPrincipal` to whatever field the team already
-   uses for enable/disable.
-4. Any module (login/auth) that issues JWTs should call
-   `JwtUtil.generateToken(email, userId, role)` from `security/JwtUtil.java`
-   so tokens work with `JwtAuthenticationFilter`. Merge `SecurityConfig`
-   route rules into the team's existing config if one exists.
-5. Set the `JWT_SECRET` environment variable (never hard-code it — Team
-   Rule #20).
-6. Other modules can reference `Announcement`, `PlatformAnalytics`, and
-   `TeamMemberReview` by ID/FK exactly as with any other entity — no
-   special coupling.
+## 7. Example API Requests & Responses
 
-## 10. Example API requests/responses
-
-**Suspend a student account**
-```
+### Suspend a Student Account
+```http
 PATCH /api/admin/users/42/status
 Authorization: Bearer <admin-jwt>
 Content-Type: application/json
@@ -215,15 +205,15 @@ Content-Type: application/json
 }
 ```
 
-**Send an announcement to all students**
-```
+### Post System Announcement
+```http
 POST /api/announcements
 Authorization: Bearer <admin-jwt>
 Content-Type: application/json
 
 {
-  "title": "Midterm project checkpoint",
-  "content": "All teams must submit a progress report by Friday.",
+  "title": "Midterm Checkpoint",
+  "content": "All teams must complete project milestones by Friday.",
   "scope": "STUDENTS"
 }
 ```
@@ -233,8 +223,8 @@ Content-Type: application/json
   "message": "Announcement sent",
   "data": {
     "id": 7,
-    "title": "Midterm project checkpoint",
-    "content": "All teams must submit a progress report by Friday.",
+    "title": "Midterm Checkpoint",
+    "content": "All teams must complete project milestones by Friday.",
     "scope": "STUDENTS",
     "projectId": null,
     "createdBy": 1,
@@ -243,78 +233,13 @@ Content-Type: application/json
 }
 ```
 
-**Get flagged (delayed/inactive) projects**
-```
-GET /api/admin/projects/health/flagged
-Authorization: Bearer <admin-jwt>
-```
-```json
-{
-  "success": true,
-  "message": "success",
-  "data": [
-    {
-      "projectId": 5,
-      "projectTitle": "Campus Ride Sharing App",
-      "delayed": true,
-      "inactive": false,
-      "delayedTaskCount": 2,
-      "lastActivityAt": "2026-08-30T14:00:00",
-      "delayedTaskIds": [21, 23]
-    }
-  ]
-}
-```
+---
 
-**Submit a team member review**
-```
-POST /api/reviews
-Authorization: Bearer <student-jwt>
-Content-Type: application/json
+## 8. Frontend Administration Application
 
-{
-  "projectId": 5,
-  "revieweeId": 17,
-  "rating": 4,
-  "comments": "Delivered the API work on time, good communicator."
-}
-```
-```json
-{
-  "success": true,
-  "message": "Review submitted",
-  "data": {
-    "id": 3,
-    "projectId": 5,
-    "reviewerId": 12,
-    "revieweeId": 17,
-    "rating": 4,
-    "comments": "Delivered the API work on time, good communicator.",
-    "createdAt": "2026-09-02T10:05:00"
-  }
-}
-```
-
-## 11. First-Time Admin Setup & Authentication
-
-This module includes a secure authentication flow:
-
-- `GET /api/auth/admin/status` checks if an administrator account has been configured.
-- `POST /api/auth/admin/setup` creates the initial administrator account during first-time setup (disabled once an admin exists).
-- `POST /api/auth/login` and `POST /api/auth/admin/login` authenticate email + password with Spring Security and BCrypt.
-- `POST /api/auth/register/student` and `POST /api/auth/register/faculty` provide public student/faculty registration.
-- Only users whose role is `ADMIN` can access `/api/admin/**` endpoints.
-- JWT contains email, userId, and role.
-
-## 12. Frontend
-
-```bash
-cd frontend
-cp .env.example .env
-npm install
-npm run dev
-```
-
-Open `http://localhost:5173/admin/login`.
-
-The frontend stores the JWT in `localStorage`, automatically sends it as a Bearer token, protects all `/admin/*` routes, and redirects to the admin login page when the API returns 401/403.
+The React frontend provides a comprehensive UI dashboard for administrators:
+- **Authentication**: Setup wizard & login with auto JWT persistence.
+- **User & Role Management**: Interactive data tables to enable/suspend accounts and adjust role permissions.
+- **Project Oversight**: Filterable table of active, completed, delayed, and inactive projects.
+- **Broadcast System**: Easy-to-use form to broadcast announcements to targeted groups.
+- **Real-Time Analytics**: Visual cards displaying platform metrics and project health checks.

@@ -226,6 +226,19 @@ export async function deleteUser(userId) {
   });
 }
 
+// Roles & Permissions
+export async function fetchRolePermissions() {
+  return authFetch('/api/admin/roles/permissions');
+}
+
+export async function updateRolePermissions(role, permissions) {
+  return authFetch(`/api/admin/roles/${role}/permissions`, {
+    method: 'PUT',
+    body: JSON.stringify({ permissions }),
+  });
+}
+
+
 // Manage Projects
 export async function fetchProjects(status) {
   const path = status ? `/api/admin/projects?status=${status}` : `/api/admin/projects`;
