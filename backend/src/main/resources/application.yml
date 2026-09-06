@@ -4,6 +4,8 @@ server:
 spring:
   application:
     name: platform
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
 
   datasource:
     url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:student_platform}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Kolkata&createDatabaseIfNotExist=true
@@ -33,3 +35,5 @@ app:
     inactivity-threshold-days: ${INACTIVITY_THRESHOLD_DAYS:7}
     # Number of days past a task's dueDate (still not COMPLETED) before it counts as "delayed"
     delay-grace-days: ${DELAY_GRACE_DAYS:0}
+  upload:
+    dir: ${UPLOAD_DIR:./uploads}

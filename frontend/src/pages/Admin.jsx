@@ -42,7 +42,9 @@ import {
   deleteAnnouncement,
   fetchFlaggedProjects,
   createTeamReview,
-  fetchReviewsForProject
+  fetchReviewsForProject,
+  fetchRolePermissions,
+  updateRolePermissions
 } from '../services/adminService';
 import '../styles/admin.css';
 
@@ -746,6 +748,9 @@ function Roles() {
     FACULTY: ['VIEW_PROJECTS', 'EVALUATE_PROJECTS', 'SEND_FEEDBACK'],
     STUDENT: ['CREATE_PROJECT', 'JOIN_TEAM', 'MANAGE_TASKS', 'SEND_MESSAGES'],
   });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [savingMsg, setSavingMsg] = useState('');
 
   const permissions = [
     'MANAGE_USERS',
@@ -761,20 +766,65 @@ function Roles() {
     'SEND_MESSAGES',
   ];
 
-  const toggle = (role, permission) =>
-    setRoles({
-      ...roles,
-      [role]: roles[role].includes(permission)
-        ? roles[role].filter((p) => p !== permission)
-        : [...roles[role], permission],
-    });
+  const loadPermissions = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await fetchRolePermissions();
+      if (data && typeof data === 'object') {
+        setRoles({
+          ADMIN: data.ADMIN || [],
+          FACULTY: data.FACULTY || [],
+          STUDENT: data.STUDENT || [],
+        });
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadPermissions();
+  }, []);
+
+  const toggle = async (role, permission) => {
+    const currentList = roles[role] || [];
+    const updatedList = currentList.includes(permission)
+      ? currentList.filter((p) => p !== permission)
+      : [...currentList, permission];
+
+    setRoles((prev) => ({
+      ...prev,
+      [role]: updatedList,
+    }));
+
+    try {
+      setSavingMsg(`Saving permissions for ${role}...`);
+      await updateRolePermissions(role, updatedList);
+      setSavingMsg(`Permissions for ${role} saved to database.`);
+      setTimeout(() => setSavingMsg(''), 3000);
+    } catch (err) {
+      alert(`Failed to save permission change: ${err.message}`);
+      loadPermissions();
+    }
+  };
+
+  if (loading) return <LoadingSpinner message="Fetching role permissions from MySQL database..." />;
+  if (error) return <ErrorNotice message={error} onRetry={loadPermissions} />;
 
   return (
     <section className="panel permissions">
+      {savingMsg && (
+        <div style={{ padding: '8px 12px', background: '#ecfdf3', border: '1px solid #abedd0', color: '#16844a', borderRadius: '8px', marginBottom: '12px', fontSize: '13px' }}>
+          {savingMsg}
+        </div>
+      )}
       <div className="permission-note">
         <ShieldCheck size={18} />
         <span>
-          UI permission matrix. Backend security uses Spring Security <b>@PreAuthorize</b> annotations and JWT roles to enforce authorization.
+          Persisted Role-Permission Matrix. Permission changes are saved directly to MySQL DB and respected across page reloads.
         </span>
       </div>
       <table>
@@ -793,10 +843,10 @@ function Roles() {
               {['ADMIN', 'FACULTY', 'STUDENT'].map((role) => (
                 <td key={role}>
                   <button
-                    className={`check ${roles[role].includes(permission) ? 'checked' : ''}`}
+                    className={`check ${roles[role]?.includes(permission) ? 'checked' : ''}`}
                     onClick={() => toggle(role, permission)}
                   >
-                    {roles[role].includes(permission) ? '✓' : ''}
+                    {roles[role]?.includes(permission) ? '✓' : ''}
                   </button>
                 </td>
               ))}
@@ -810,10 +860,11 @@ function Roles() {
 
 function Announcements() {
   const [announcements, setAnnouncements] = useState([]);
+  const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ title: '', scope: 'ALL', content: '' });
+  const [form, setForm] = useState({ title: '', scope: 'ALL', projectId: '', content: '' });
 
   const loadAnnouncements = async () => {
     setLoading(true);
@@ -822,6 +873,10 @@ function Announcements() {
       const pageData = await fetchAnnouncements();
       const content = pageData?.content || (Array.isArray(pageData) ? pageData : []);
       setAnnouncements(content);
+
+      const pRes = await fetchProjects();
+      const pList = pRes?.content || (Array.isArray(pRes) ? pRes : []);
+      setProjects(pList);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -835,13 +890,18 @@ function Announcements() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (form.scope === 'PROJECT' && !form.projectId) {
+      alert('Please select a target project for project-scoped announcements.');
+      return;
+    }
     try {
       await createAnnouncement({
         title: form.title,
         content: form.content,
         scope: form.scope,
+        projectId: form.scope === 'PROJECT' ? Number(form.projectId) : null,
       });
-      setForm({ title: '', scope: 'ALL', content: '' });
+      setForm({ title: '', scope: 'ALL', projectId: '', content: '' });
       setOpen(false);
       loadAnnouncements();
     } catch (err) {
@@ -888,6 +948,7 @@ function Announcements() {
               <div className="announcement-body">
                 <div className="announcement-meta">
                   <span className="pill">{a.scope}</span>
+                  {a.projectId && <span className="pill" style={{ background: '#eef2ff', color: '#315bea' }}>Project #{a.projectId}</span>}
                   <small>{formatDate(a.createdAt)}</small>
                   <button
                     className="icon-btn"
@@ -928,8 +989,26 @@ function Announcements() {
                 <option value="ALL">ALL (Students & Faculty)</option>
                 <option value="STUDENTS">STUDENTS</option>
                 <option value="FACULTY">FACULTY</option>
+                <option value="PROJECT">PROJECT (Specific Project)</option>
               </select>
             </label>
+            {form.scope === 'PROJECT' && (
+              <label className="full">
+                Target Project
+                <select
+                  required
+                  value={form.projectId}
+                  onChange={(e) => setForm({ ...form, projectId: e.target.value })}
+                >
+                  <option value="">Select Target Project</option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.title} (ID #{p.id})
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <label className="full">
               Message Content
               <textarea
@@ -1007,12 +1086,12 @@ function Delayed() {
               flagged.map((p) => (
                 <tr key={p.projectId}>
                   <td><b>#{p.projectId}</b></td>
-                  <td>{p.title}</td>
+                  <td>{p.projectTitle || p.title || `Project #${p.projectId}`}</td>
                   <td>
                     {p.delayed && <span className="risk high" style={{ marginRight: '6px' }}>DELAYED (Overdue Task)</span>}
                     {p.inactive && <span className="risk high" style={{ background: '#fff4df', color: '#a86c00' }}>INACTIVE (Stale)</span>}
                   </td>
-                  <td>{p.overdueTaskCount} overdue</td>
+                  <td>{p.delayedTaskCount ?? p.overdueTaskCount ?? 0} overdue</td>
                   <td>{formatDate(p.lastActivityAt)}</td>
                 </tr>
               ))

@@ -6,9 +6,8 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 /**
- * PLACEHOLDER ENTITY - see User.java header comment.
- * Replace with the canonical ProjectProgress entity from the shared repo.
- * Used here to detect inactivity (last activity timestamp per project).
+ * ProjectProgress entity tracking overall project completion and activity.
+ * OWNED by Member 2 - Team Collaboration.
  */
 @Entity
 @Table(name = "project_progress")
