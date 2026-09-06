@@ -64,14 +64,29 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .headers(headers -> headers.frameOptions(frame -> frame.disable()))
             .authorizeHttpRequests(auth -> auth
-                // Public
+                // Public endpoints
                 .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers("/h2-console/**").permitAll()
+                .requestMatchers("/api/files/download/**").permitAll()
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/projects/**").permitAll()
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/tasks/**").permitAll()
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/teams/**").permitAll()
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/files/**").permitAll()
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/messages/**").permitAll()
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/announcements/**").permitAll()
                 // Admin & System module (Member 4) — ADMIN only, except where noted
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/announcements/**").authenticated() // create=ADMIN enforced via @PreAuthorize, read=any authenticated user
                 .requestMatchers("/api/analytics/**").hasRole("ADMIN")
                 .requestMatchers("/api/reviews/**").authenticated() // STUDENT/FACULTY/ADMIN, enforced via @PreAuthorize per-endpoint
+                // Team Collaboration module (Member 2)
+                .requestMatchers("/api/tasks/**").authenticated()
+                .requestMatchers("/api/projects/**").authenticated()
+                .requestMatchers("/api/teams/**").authenticated()
+                .requestMatchers("/api/messages/**").authenticated()
+                .requestMatchers("/api/files/**").authenticated()
                 // Everything else: require authentication by default
                 .anyRequest().authenticated()
             )

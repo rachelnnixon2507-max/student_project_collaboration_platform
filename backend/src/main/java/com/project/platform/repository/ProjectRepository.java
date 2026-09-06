@@ -8,5 +8,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ProjectRepository extends JpaRepository<Project, Long> {
     Page<Project> findByStatus(ProjectStatus status, Pageable pageable);
+    java.util.List<Project> findByStatus(ProjectStatus status);
     long countByStatus(ProjectStatus status);
 }

@@ -6,7 +6,7 @@ const links = [
   ['/dashboard', 'Dashboard', LayoutDashboard],
   ['/projects', 'Projects', FolderKanban],
   ['/teams', 'Teams', Users],
-  ['/tasks', 'Tasks', CheckSquare],
+  ['/tasks', 'Tasks & Progress', CheckSquare],
   ['/messages', 'Messages', MessageSquare],
   ['/notifications', 'Notifications', Bell],
   ['/profile', 'Profile', User],

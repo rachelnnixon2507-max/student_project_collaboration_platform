@@ -7,8 +7,8 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 /**
- * PLACEHOLDER ENTITY - see User.java header comment.
- * Replace with the canonical Task entity from the shared repo.
+ * Task entity representing tasks assigned within a project.
+ * OWNED by Member 2 - Team Collaboration.
  */
 @Entity
 @Table(name = "tasks")
