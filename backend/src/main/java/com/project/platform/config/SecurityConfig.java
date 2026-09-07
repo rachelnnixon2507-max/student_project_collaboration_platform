@@ -81,12 +81,14 @@ public class SecurityConfig {
                 .requestMatchers("/api/announcements/**").authenticated() // create=ADMIN enforced via @PreAuthorize, read=any authenticated user
                 .requestMatchers("/api/analytics/**").hasRole("ADMIN")
                 .requestMatchers("/api/reviews/**").authenticated() // STUDENT/FACULTY/ADMIN, enforced via @PreAuthorize per-endpoint
-                // Team Collaboration module (Member 2)
+                // Team Collaboration (Member 2), Member 1 (Projects, Students, Notifications) & shared routes
                 .requestMatchers("/api/tasks/**").authenticated()
                 .requestMatchers("/api/projects/**").authenticated()
                 .requestMatchers("/api/teams/**").authenticated()
                 .requestMatchers("/api/messages/**").authenticated()
                 .requestMatchers("/api/files/**").authenticated()
+                .requestMatchers("/api/students/**").authenticated()
+                .requestMatchers("/api/notifications/**").authenticated()
                 // Everything else: require authentication by default
                 .anyRequest().authenticated()
             )

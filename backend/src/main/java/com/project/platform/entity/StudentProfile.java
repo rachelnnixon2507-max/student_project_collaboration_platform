@@ -3,9 +3,11 @@ package com.project.platform.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDateTime;
+
 /**
- * PLACEHOLDER ENTITY - see User.java header comment.
- * Replace with the canonical StudentProfile entity from the shared repo.
+ * Canonical StudentProfile entity.
+ * Owned by Member 1 (Student Profile & Projects module).
  */
 @Entity
 @Table(name = "student_profiles")
@@ -35,4 +37,21 @@ public class StudentProfile {
 
     @Column(name = "linkedin_url")
     private String linkedinUrl;
+
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt;
+
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
+    @PrePersist
+    protected void onCreate() {
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = this.createdAt;
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
+    }
 }

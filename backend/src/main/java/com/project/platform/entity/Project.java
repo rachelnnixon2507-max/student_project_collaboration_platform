@@ -7,8 +7,8 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 /**
- * PLACEHOLDER ENTITY - see User.java header comment.
- * Replace with the canonical Project entity from the shared repo.
+ * Canonical Project entity.
+ * Owned by Member 1 (Student Profile & Projects module).
  */
 @Entity
 @Table(name = "projects")
