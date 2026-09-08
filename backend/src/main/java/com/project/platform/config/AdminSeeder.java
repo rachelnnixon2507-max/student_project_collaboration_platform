@@ -18,6 +18,9 @@ public class AdminSeeder {
     private final UserRepository userRepository;
     private final StudentProfileRepository studentProfileRepository;
     private final FacultyProfileRepository facultyProfileRepository;
+    private final FacultyFeedbackRepository facultyFeedbackRepository;
+    private final ProjectEvaluationRepository projectEvaluationRepository;
+    private final ProjectApprovalRepository projectApprovalRepository;
     private final ProjectRepository projectRepository;
     private final ProjectMemberRepository projectMemberRepository;
     private final TaskRepository taskRepository;
@@ -111,6 +114,41 @@ public class AdminSeeder {
                 // Reviews
                 teamMemberReviewRepository.save(TeamMemberReview.builder().projectId(p1.getId()).reviewerId(s1.getId()).revieweeId(s2.getId()).rating(5).comments("Strong technical contribution, reliable sensor driver code, and consistent communication.").build());
                 teamMemberReviewRepository.save(TeamMemberReview.builder().projectId(p4.getId()).reviewerId(s1.getId()).revieweeId(s3.getId()).rating(5).comments("Excellent ownership of the backend integration.").build());
+
+                // Faculty Feedback (Member 3)
+                facultyFeedbackRepository.save(FacultyFeedback.builder()
+                        .projectId(p1.getId())
+                        .facultyId(f1.getId())
+                        .feedbackText("Solid progress on the system architecture and sensor integration. Ensure load-testing with 100+ concurrent simulated vehicles before final evaluation.")
+                        .rating(5)
+                        .build());
+                facultyFeedbackRepository.save(FacultyFeedback.builder()
+                        .projectId(p2.getId())
+                        .facultyId(f1.getId())
+                        .feedbackText("Algorithm design shows promise. Focus on completing the OAuth calendar sync by this Friday.")
+                        .rating(4)
+                        .build());
+
+                // Faculty Project Evaluation (Member 3)
+                projectEvaluationRepository.save(ProjectEvaluation.builder()
+                        .projectId(p4.getId())
+                        .evaluatorId(f1.getId())
+                        .technicalScore(94.0)
+                        .innovationScore(88.0)
+                        .executionScore(96.0)
+                        .presentationScore(92.0)
+                        .totalScore(93.1)
+                        .grade("A+")
+                        .remarks("Outstanding execution of the QR code ticketing system, analytics dashboard, and deployment pipeline.")
+                        .build());
+
+                // Faculty Project Approval (Member 3)
+                projectApprovalRepository.save(ProjectApproval.builder()
+                        .projectId(p4.getId())
+                        .facultyId(f1.getId())
+                        .decision(com.project.platform.entity.enums.ProjectApprovalDecision.APPROVED)
+                        .comments("All deliverables meet department criteria. Approved for final showcase presentation.")
+                        .build());
             }
         };
     }

@@ -160,30 +160,18 @@ export async function loginStudent(email, password) {
 
 export async function loginFaculty(email, password) {
   const url = `${API_BASE}/api/auth/faculty/login`;
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
-    const body = await res.json();
-    if (!res.ok) {
-      throw new Error(body?.message || body?.error || 'Login failed. Invalid credentials.');
-    }
-    const data = body.data || body;
-    setAuth(data.token, data);
-    return data;
-  } catch (err) {
-    const facultyUser = {
-      token: 'mock-jwt-faculty-token-12345',
-      id: 2,
-      name: email.includes('@') ? email.split('@')[0] : 'Demo Faculty',
-      email: email,
-      role: 'FACULTY',
-    };
-    setAuth(facultyUser.token, facultyUser);
-    return facultyUser;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  const body = await res.json();
+  if (!res.ok) {
+    throw new Error(body?.message || body?.error || 'Login failed. Invalid credentials.');
   }
+  const data = body.data || body;
+  setAuth(data.token, data);
+  return data;
 }
 
 // Legacy Admin Login helper

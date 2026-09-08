@@ -76,6 +76,7 @@ public class SecurityConfig {
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/files/**").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/messages/**").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/announcements/**").permitAll()
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/faculty/**").permitAll()
                 // Admin & System module (Member 4) — ADMIN only, except where noted
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/announcements/**").authenticated() // create=ADMIN enforced via @PreAuthorize, read=any authenticated user
@@ -88,6 +89,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/messages/**").authenticated()
                 .requestMatchers("/api/files/**").authenticated()
                 .requestMatchers("/api/students/**").authenticated()
+                .requestMatchers("/api/faculty/**").authenticated()
                 .requestMatchers("/api/notifications/**").authenticated()
                 // Everything else: require authentication by default
                 .anyRequest().authenticated()
