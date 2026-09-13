@@ -1,18 +1,25 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Bell, CheckCheck, Trash2, UserPlus, CheckCircle2, 
-  XCircle, Info, ExternalLink, AlertCircle 
+import {
+  Bell,
+  CheckCheck,
+  Trash2,
+  UserPlus,
+  CheckCircle2,
+  XCircle,
+  Info,
+  ExternalLink,
+  AlertCircle,
+  ChevronRight
 } from 'lucide-react';
-import PageHeader from '../components/PageHeader';
-import EmptyState from '../components/EmptyState';
 import { getUser, isAuthenticated } from '../services/adminService';
-import { 
-  fetchNotifications, fetchUnreadNotificationCount, 
-  markNotificationRead, markAllNotificationsRead, deleteNotification 
+import {
+  fetchNotifications,
+  fetchUnreadNotificationCount,
+  markNotificationRead,
+  markAllNotificationsRead,
+  deleteNotification
 } from '../services/projectService';
-import '../styles/admin.css';
-import '../styles/member1.css';
 
 export default function Notifications() {
   const navigate = useNavigate();
@@ -26,11 +33,11 @@ export default function Notifications() {
 
   useEffect(() => {
     if (!loggedIn) {
-      setLoading(false);
+      navigate('/login');
       return;
     }
     loadNotifications();
-  }, [loggedIn]);
+  }, [loggedIn, navigate]);
 
   const loadNotifications = async () => {
     setLoading(true);
@@ -40,7 +47,7 @@ export default function Notifications() {
         fetchNotifications(0, 50),
         fetchUnreadNotificationCount().catch(() => ({ unreadCount: 0 })),
       ]);
-      setNotifications(res?.content || []);
+      setNotifications(res?.content || (Array.isArray(res) ? res : []));
       setUnreadCount(unreadRes?.unreadCount || 0);
     } catch (err) {
       setError(err.message || 'Failed to load notifications');
@@ -81,154 +88,129 @@ export default function Notifications() {
     }
   };
 
-  const getIcon = (type) => {
-    switch (type) {
-      case 'JOIN_REQUEST':
-        return (
-          <div className="notification-icon join">
-            <UserPlus size={18} />
-          </div>
-        );
-      case 'JOIN_ACCEPTED':
-        return (
-          <div className="notification-icon accept">
-            <CheckCircle2 size={18} />
-          </div>
-        );
-      case 'JOIN_REJECTED':
-        return (
-          <div className="notification-icon reject">
-            <XCircle size={18} />
-          </div>
-        );
-      default:
-        return (
-          <div className="notification-icon system">
-            <Info size={18} />
-          </div>
-        );
+  const handleNotificationClick = (item) => {
+    if (!item.isRead) {
+      handleMarkAsRead(item.id);
+    }
+    if (item.type === 'JOIN_REQUEST') {
+      navigate('/teams');
+    } else if (item.type === 'JOIN_ACCEPTED') {
+      navigate('/tasks');
+    } else if (item.referenceType === 'PROJECT' && item.referenceId) {
+      navigate(`/projects?id=${item.referenceId}`);
     }
   };
 
-  if (!loggedIn) {
-    return (
-      <div style={{ textAlign: 'center', padding: '80px 20px' }}>
-        <PageHeader title="Notifications" description="Please log in to view your updates and alerts." />
-        <button onClick={() => navigate('/login')} className="primary" style={{ marginTop: '20px' }}>
-          Sign In to Access Notifications
-        </button>
-      </div>
-    );
-  }
-
-  const displayedList = filterUnreadOnly
+  const displayedNotifications = filterUnreadOnly
     ? notifications.filter((n) => !n.isRead)
     : notifications;
 
   return (
-    <div className="projects-container">
-      <div className="page-header">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
         <div>
-          <h2>Notifications</h2>
-          <p>Real-time updates on your project teams, incoming join requests, and platform activity.</p>
+          <h1 style={{ fontSize: 24, fontWeight: 800 }}>Notification Center</h1>
+          <p style={{ fontSize: 13.5, color: 'var(--text-muted)' }}>
+            Real-time alerts on join requests, team sprint approvals, and institutional announcements.
+          </p>
         </div>
-        {unreadCount > 0 && (
-          <button onClick={handleMarkAllRead} className="secondary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <CheckCheck size={16} /> Mark All as Read
+
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            onClick={() => setFilterUnreadOnly(!filterUnreadOnly)}
+            className={`btn btn-sm ${filterUnreadOnly ? 'btn-primary' : 'btn-secondary'}`}
+          >
+            {filterUnreadOnly ? 'Show All' : 'Unread Only'}
           </button>
-        )}
+          {unreadCount > 0 && (
+            <button onClick={handleMarkAllRead} className="btn btn-secondary btn-sm">
+              <CheckCheck size={14} /> Mark All as Read
+            </button>
+          )}
+        </div>
       </div>
 
       {error && (
-        <div style={{ background: '#fff0ef', border: '1px solid #fecdd3', color: '#c94b3d', padding: '12px 18px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <AlertCircle size={18} />
-          <span>{error}</span>
+        <div style={{ background: 'var(--danger-50)', color: 'var(--danger-700)', padding: '12px 16px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--danger-100)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5 }}>
+          <AlertCircle size={16} /> {error}
         </div>
       )}
 
-      {/* Filter Tabs */}
-      <div className="filters-bar" style={{ padding: '12px 18px' }}>
-        <div className="filter-group">
-          <button
-            type="button"
-            className={`status-chip ${!filterUnreadOnly ? 'active' : ''}`}
-            onClick={() => setFilterUnreadOnly(false)}
-          >
-            All Notifications ({notifications.length})
-          </button>
-          <button
-            type="button"
-            className={`status-chip ${filterUnreadOnly ? 'active' : ''}`}
-            onClick={() => setFilterUnreadOnly(true)}
-          >
-            Unread Only ({unreadCount})
-          </button>
-        </div>
-      </div>
+      {/* Notifications List */}
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Loading notifications...</div>
+        ) : displayedNotifications.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted)' }}>
+            <Bell size={40} color="var(--text-subtle)" style={{ margin: '0 auto 12px' }} />
+            <h3 style={{ fontSize: 16, fontWeight: 700 }}>No notifications</h3>
+            <p style={{ fontSize: 13 }}>You're all caught up with your campus collaborations!</p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {displayedNotifications.map((item) => (
+              <div
+                key={item.id}
+                onClick={() => handleNotificationClick(item)}
+                style={{
+                  padding: '16px 20px',
+                  borderBottom: '1px solid var(--border-subtle)',
+                  background: item.isRead ? 'var(--bg-surface)' : 'var(--primary-50)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-start',
+                  gap: 16,
+                  cursor: 'pointer',
+                  transition: 'background 0.15s ease'
+                }}
+              >
+                <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                  <div style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: '50%',
+                    background: item.isRead ? 'var(--bg-subtle)' : 'var(--primary-100)',
+                    color: item.isRead ? 'var(--text-secondary)' : 'var(--primary-700)',
+                    display: 'grid',
+                    placeItems: 'center',
+                    flexShrink: 0
+                  }}>
+                    {item.type === 'JOIN_REQUEST' ? <UserPlus size={18} /> : item.type === 'JOIN_ACCEPTED' ? <CheckCircle2 size={18} /> : <Bell size={18} />}
+                  </div>
 
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: '60px', color: '#8791a5' }}>
-          Loading notifications...
-        </div>
-      ) : displayedList.length === 0 ? (
-        <EmptyState
-          title={filterUnreadOnly ? "No unread notifications" : "No notifications yet"}
-          description="You are all caught up! Activity about your projects and team join requests will appear here."
-        />
-      ) : (
-        <div style={{ display: 'grid', gap: '12px' }}>
-          {displayedList.map((notif) => (
-            <div
-              key={notif.id}
-              className={`notification-card ${!notif.isRead ? 'unread' : ''}`}
-              onClick={() => {
-                if (!notif.isRead) handleMarkAsRead(notif.id);
-                if (notif.referenceType === 'PROJECT') {
-                  navigate('/teams');
-                }
-              }}
-              style={{ cursor: 'pointer' }}
-            >
-              {getIcon(notif.type)}
-
-              <div className="notification-content">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <h4 className="notification-title">{notif.title}</h4>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    {!notif.isRead && (
-                      <span className="pill student" style={{ fontSize: '10px', padding: '2px 8px' }}>
-                        NEW
-                      </span>
-                    )}
-                    <button
-                      onClick={(e) => handleDelete(notif.id, e)}
-                      className="icon-btn"
-                      title="Delete notification"
-                      style={{ border: 0, color: '#94a3b8' }}
-                    >
-                      <Trash2 size={15} />
-                    </button>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                      <strong style={{ fontSize: 14, color: 'var(--text-main)' }}>{item.title}</strong>
+                      {!item.isRead && (
+                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--primary-600)' }} />
+                      )}
+                    </div>
+                    <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.4, margin: '2px 0 6px' }}>
+                      {item.message}
+                    </p>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      {item.createdAt ? new Date(item.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Recently'}
+                    </span>
                   </div>
                 </div>
 
-                <p className="notification-message">{notif.message}</p>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
-                  <span className="notification-time">
-                    {notif.createdAt ? new Date(notif.createdAt).toLocaleString() : ''}
-                  </span>
-
-                  {notif.referenceType === 'PROJECT' && (
-                    <span style={{ fontSize: '12px', color: '#315bea', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
-                      View in Teams <ExternalLink size={12} />
-                    </span>
-                  )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <button
+                    onClick={(e) => handleDelete(item.id, e)}
+                    className="btn btn-ghost btn-sm"
+                    style={{ color: 'var(--text-muted)', padding: 6 }}
+                    title="Delete notification"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                  <ChevronRight size={16} color="var(--text-muted)" />
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

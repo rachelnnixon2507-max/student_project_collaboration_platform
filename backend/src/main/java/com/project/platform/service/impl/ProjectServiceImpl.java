@@ -52,12 +52,14 @@ public class ProjectServiceImpl implements ProjectService {
             .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
 
         ProjectStatus initialStatus = request.status() != null ? request.status() : ProjectStatus.OPEN;
+        int maxMembers = (request.maxMembers() != null && request.maxMembers() > 0) ? request.maxMembers() : 4;
 
         Project project = Project.builder()
             .title(request.title().trim())
             .description(request.description() != null ? request.description().trim() : null)
             .requiredSkills(request.requiredSkills() != null ? request.requiredSkills().trim() : null)
             .status(initialStatus)
+            .maxMembers(maxMembers)
             .createdBy(userId)
             .build();
 
@@ -100,6 +102,9 @@ public class ProjectServiceImpl implements ProjectService {
         }
         if (request.status() != null) {
             project.setStatus(request.status());
+        }
+        if (request.maxMembers() != null && request.maxMembers() > 0) {
+            project.setMaxMembers(request.maxMembers());
         }
 
         Project updated = projectRepository.save(project);
@@ -210,6 +215,8 @@ public class ProjectServiceImpl implements ProjectService {
     private ProjectSummaryResponse toSummaryResponse(Project project) {
         User creator = userRepository.findById(project.getCreatedBy()).orElse(null);
         int memberCount = (int) projectMemberRepository.countByProjectId(project.getId());
+        int maxMembers = project.getMaxMembers() != null && project.getMaxMembers() > 0 ? project.getMaxMembers() : 4;
+        int availableSeats = Math.max(0, maxMembers - memberCount);
 
         return new ProjectSummaryResponse(
             project.getId(),
@@ -222,13 +229,17 @@ public class ProjectServiceImpl implements ProjectService {
             creator != null ? creator.getEmail() : "Unknown",
             project.getCreatedAt(),
             project.getUpdatedAt(),
-            memberCount
+            memberCount,
+            maxMembers,
+            availableSeats
         );
     }
 
     private ProjectDetailResponse toDetailResponse(Project project, Long currentUserId) {
         User creator = userRepository.findById(project.getCreatedBy()).orElse(null);
         List<ProjectMemberResponse> members = fetchMembers(project.getId());
+        int maxMembers = project.getMaxMembers() != null && project.getMaxMembers() > 0 ? project.getMaxMembers() : 4;
+        int availableSeats = Math.max(0, maxMembers - members.size());
 
         boolean isLeader = false;
         boolean isMember = false;
@@ -263,12 +274,15 @@ public class ProjectServiceImpl implements ProjectService {
             project.getUpdatedAt(),
             members,
             members.size(),
+            maxMembers,
+            availableSeats,
             isLeader,
             isMember,
             joinStatus,
             joinRequestId
         );
     }
+
 
     private List<ProjectMemberResponse> fetchMembers(Long projectId) {
         List<ProjectMember> members = projectMemberRepository.findByProjectId(projectId);

@@ -1,6 +1,8 @@
 package com.project.platform.service.impl;
 
 import com.project.platform.dto.request.AiMatchCustomRequest;
+import com.project.platform.dto.request.InviteCandidateRequest;
+import com.project.platform.dto.request.SendMessageRequest;
 import com.project.platform.dto.response.AiCandidateMatchResponse;
 import com.project.platform.dto.response.AiProjectMatchResponse;
 import com.project.platform.entity.Project;
@@ -8,6 +10,8 @@ import com.project.platform.entity.ProjectMember;
 import com.project.platform.entity.StudentProfile;
 import com.project.platform.entity.User;
 import com.project.platform.entity.enums.CompatibilityLevel;
+import com.project.platform.entity.enums.MessageType;
+import com.project.platform.entity.enums.NotificationType;
 import com.project.platform.entity.enums.ProjectStatus;
 import com.project.platform.entity.enums.Role;
 import com.project.platform.exception.ResourceNotFoundException;
@@ -16,6 +20,8 @@ import com.project.platform.repository.ProjectRepository;
 import com.project.platform.repository.StudentProfileRepository;
 import com.project.platform.repository.UserRepository;
 import com.project.platform.service.AiMatchingService;
+import com.project.platform.service.MessageService;
+import com.project.platform.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,6 +42,50 @@ public class AiMatchingServiceImpl implements AiMatchingService {
     private final ProjectMemberRepository projectMemberRepository;
     private final UserRepository userRepository;
     private final StudentProfileRepository studentProfileRepository;
+    private final NotificationService notificationService;
+    private final MessageService messageService;
+
+    @Override
+    @Transactional
+    public void inviteCandidate(Long leaderId, InviteCandidateRequest request) {
+        Project project = projectRepository.findById(request.projectId())
+                .orElseThrow(() -> new ResourceNotFoundException("Project not found with id: " + request.projectId()));
+
+        User leader = userRepository.findById(leaderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Leader not found with id: " + leaderId));
+
+        User candidate = userRepository.findById(request.candidateStudentId())
+                .orElseThrow(() -> new ResourceNotFoundException("Candidate student not found with id: " + request.candidateStudentId()));
+
+        boolean alreadyMember = projectMemberRepository.existsByProjectIdAndStudentId(project.getId(), candidate.getId())
+                || (project.getCreatedBy() != null && project.getCreatedBy().equals(candidate.getId()));
+        if (alreadyMember) {
+            throw new IllegalArgumentException(candidate.getName() + " is already a member of this project.");
+        }
+
+        String note = (request.message() != null && !request.message().isBlank()) 
+                ? " Note: \"" + request.message().trim() + "\"" 
+                : "";
+
+        // 1. In-App Notification to candidate
+        notificationService.createNotification(
+                candidate.getId(),
+                "🎯 Team Invitation: " + project.getTitle(),
+                leader.getName() + " invited you to join team for project \"" + project.getTitle() + "\" based on your skill match." + note,
+                NotificationType.JOIN_REQUEST,
+                project.getId(),
+                "PROJECT"
+        );
+
+        // 2. Direct message thread from leader to candidate
+        String directMsg = "🎯 [TEAM INVITATION] Hi " + candidate.getName() + "! I saw your profile on the Smart AI Matcher and would love to invite you to join my project team for \"" + project.getTitle() + "\"." + (request.message() != null && !request.message().isBlank() ? " Note: " + request.message().trim() : "");
+        try {
+            messageService.sendMessage(
+                    new SendMessageRequest(null, candidate.getId(), directMsg, MessageType.SYSTEM_NOTICE),
+                    leaderId
+            );
+        } catch (Exception ignored) {}
+    }
 
     @Override
     public List<AiCandidateMatchResponse> matchCandidatesForProject(Long projectId, Integer maxResults) {

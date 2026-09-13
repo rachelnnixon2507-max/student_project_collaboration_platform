@@ -1,22 +1,42 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { 
-  Plus, Search, Filter, FolderKanban, Users, Clock, CheckCircle2, 
-  X, AlertCircle, Send, UserCheck, Shield, Trash2, Edit3, ArrowRight 
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import {
+  Plus,
+  Search,
+  Filter,
+  FolderGit2,
+  Users2,
+  Clock,
+  CheckCircle2,
+  X,
+  AlertCircle,
+  Send,
+  UserCheck,
+  Shield,
+  Trash2,
+  Edit3,
+  ArrowRight,
+  Sparkles,
+  Kanban,
+  MessageSquare
 } from 'lucide-react';
-import PageHeader from '../components/PageHeader';
-import EmptyState from '../components/EmptyState';
 import { getUser, isAuthenticated } from '../services/adminService';
-import { 
-  fetchProjects, fetchProjectById, createProject, updateProject, 
-  deleteProject, sendJoinRequest, respondToJoinRequest, cancelJoinRequest,
-  removeProjectMember, fetchProjectJoinRequests
+import {
+  fetchProjects,
+  fetchProjectById,
+  createProject,
+  updateProject,
+  deleteProject,
+  sendJoinRequest,
+  respondToJoinRequest,
+  cancelJoinRequest,
+  removeProjectMember,
+  fetchProjectJoinRequests
 } from '../services/projectService';
-import '../styles/admin.css';
-import '../styles/member1.css';
 
 export default function Projects() {
   const navigate = useNavigate();
+  const location = useLocation();
   const currentUser = getUser();
   const loggedIn = isAuthenticated();
 
@@ -46,13 +66,23 @@ export default function Projects() {
   const [formTitle, setFormTitle] = useState('');
   const [formDesc, setFormDesc] = useState('');
   const [formSkills, setFormSkills] = useState('');
+  const [formMaxMembers, setFormMaxMembers] = useState(4);
   const [formStatus, setFormStatus] = useState('OPEN');
   const [joinPitch, setJoinPitch] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     loadProjects();
-  }, [selectedStatus]);
+
+    const searchParams = new URLSearchParams(location.search);
+    if (searchParams.get('create') === 'true') {
+      setShowCreateModal(true);
+    }
+    const paramId = searchParams.get('id');
+    if (paramId && !isNaN(Number(paramId)) && Number(paramId) > 0) {
+      openProjectDetails(Number(paramId));
+    }
+  }, [selectedStatus, location.search]);
 
   const loadProjects = async () => {
     setLoading(true);
@@ -79,19 +109,27 @@ export default function Projects() {
   };
 
   const openProjectDetails = async (projectId) => {
-    setError('');
+    if (!projectId || isNaN(Number(projectId)) || Number(projectId) <= 0) return;
     try {
       const detail = await fetchProjectById(projectId);
-      setActiveProject(detail);
-      setDetailTab('overview');
-      setShowDetailModal(true);
+      if (detail && detail.id) {
+        setActiveProject(detail);
+        setDetailTab('overview');
+        setShowDetailModal(true);
 
-      // If leader, load join requests
-      if (detail.isCurrentUserLeader) {
-        loadJoinRequests(projectId);
+        if (detail.isCurrentUserLeader) {
+          loadJoinRequests(projectId);
+        }
       }
     } catch (err) {
-      setError(err.message || 'Could not load project details');
+      console.warn('Could not load project details:', err);
+    }
+  };
+
+  const closeDetailModal = () => {
+    setShowDetailModal(false);
+    if (location.search.includes('id=')) {
+      navigate('/projects', { replace: true });
     }
   };
 
@@ -99,9 +137,9 @@ export default function Projects() {
     setLoadingRequests(true);
     try {
       const reqs = await fetchProjectJoinRequests(projectId);
-      setJoinRequests(reqs || []);
-    } catch (err) {
-      console.error(err);
+      setJoinRequests(Array.isArray(reqs) ? reqs : []);
+    } catch (e) {
+      console.error(e);
     } finally {
       setLoadingRequests(false);
     }
@@ -113,6 +151,11 @@ export default function Projects() {
       navigate('/login');
       return;
     }
+    if (!formTitle.trim()) {
+      setError('Project title is required.');
+      return;
+    }
+
     setSubmitting(true);
     setError('');
     try {
@@ -121,14 +164,16 @@ export default function Projects() {
         description: formDesc,
         requiredSkills: formSkills,
         status: formStatus,
+        maxMembers: formMaxMembers,
       });
-      setSuccessMsg('Project posted successfully!');
       setShowCreateModal(false);
       setFormTitle('');
       setFormDesc('');
       setFormSkills('');
-      loadProjects();
+      setFormMaxMembers(4);
+      setSuccessMsg('Project created successfully! You are the Team Leader.');
       setTimeout(() => setSuccessMsg(''), 4000);
+      loadProjects();
     } catch (err) {
       setError(err.message || 'Failed to create project');
     } finally {
@@ -136,23 +181,33 @@ export default function Projects() {
     }
   };
 
+  const handleOpenEdit = () => {
+    if (!activeProject) return;
+    setFormTitle(activeProject.title);
+    setFormDesc(activeProject.description || '');
+    setFormSkills(activeProject.requiredSkills || '');
+    setFormStatus(activeProject.status || 'OPEN');
+    setFormMaxMembers(activeProject.maxMembers || 4);
+    setShowEditModal(true);
+  };
+
   const handleUpdateProject = async (e) => {
     e.preventDefault();
-    if (!activeProject) return;
     setSubmitting(true);
     setError('');
     try {
-      await updateProject(activeProject.id, {
+      const updated = await updateProject(activeProject.id, {
         title: formTitle,
         description: formDesc,
         requiredSkills: formSkills,
         status: formStatus,
+        maxMembers: formMaxMembers,
       });
-      setSuccessMsg('Project updated successfully!');
+      setActiveProject(updated);
       setShowEditModal(false);
-      openProjectDetails(activeProject.id);
-      loadProjects();
+      setSuccessMsg('Project details updated successfully!');
       setTimeout(() => setSuccessMsg(''), 4000);
+      loadProjects();
     } catch (err) {
       setError(err.message || 'Failed to update project');
     } finally {
@@ -161,15 +216,16 @@ export default function Projects() {
   };
 
   const handleDeleteProject = async (projectId) => {
-    if (!window.confirm('Are you sure you want to delete this project? All memberships and requests will be removed.')) {
+    if (!window.confirm('Are you sure you want to delete this project? This will remove all team allocations and tasks.')) {
       return;
     }
     try {
       await deleteProject(projectId);
-      setSuccessMsg('Project deleted successfully.');
       setShowDetailModal(false);
-      loadProjects();
+      setActiveProject(null);
+      setSuccessMsg('Project deleted successfully.');
       setTimeout(() => setSuccessMsg(''), 4000);
+      loadProjects();
     } catch (err) {
       setError(err.message || 'Failed to delete project');
     }
@@ -185,11 +241,12 @@ export default function Projects() {
     setError('');
     try {
       await sendJoinRequest(activeProject.id, joinPitch);
-      setSuccessMsg('Join request submitted to the project leader!');
       setShowJoinModal(false);
       setJoinPitch('');
-      openProjectDetails(activeProject.id);
+      setSuccessMsg('Join request sent to the Project Leader!');
       setTimeout(() => setSuccessMsg(''), 4000);
+      // Reload project details
+      openProjectDetails(activeProject.id);
     } catch (err) {
       setError(err.message || 'Failed to send join request');
     } finally {
@@ -197,13 +254,12 @@ export default function Projects() {
     }
   };
 
-  const handleCancelJoinRequest = async () => {
-    if (!activeProject || !activeProject.currentUserJoinRequestId) return;
+  const handleCancelRequest = async (requestId) => {
     try {
-      await cancelJoinRequest(activeProject.id, activeProject.currentUserJoinRequestId);
-      setSuccessMsg('Join request cancelled.');
-      openProjectDetails(activeProject.id);
+      await cancelJoinRequest(activeProject.id, requestId);
+      setSuccessMsg('Join request withdrawn.');
       setTimeout(() => setSuccessMsg(''), 4000);
+      openProjectDetails(activeProject.id);
     } catch (err) {
       setError(err.message || 'Failed to cancel request');
     }
@@ -212,188 +268,218 @@ export default function Projects() {
   const handleRespondRequest = async (requestId, status) => {
     try {
       await respondToJoinRequest(activeProject.id, requestId, status);
-      setSuccessMsg(`Join request ${status.toLowerCase()}!`);
+      setSuccessMsg(`Request marked as ${status}.`);
+      setTimeout(() => setSuccessMsg(''), 4000);
       loadJoinRequests(activeProject.id);
       openProjectDetails(activeProject.id);
-      setTimeout(() => setSuccessMsg(''), 4000);
     } catch (err) {
-      setError(err.message || 'Failed to update join request');
+      setError(err.message || 'Failed to update request');
     }
   };
 
   const handleRemoveMember = async (studentId) => {
-    if (!window.confirm('Are you sure you want to remove this member?')) return;
+    if (!window.confirm('Are you sure you want to remove this member from the team?')) return;
     try {
       await removeProjectMember(activeProject.id, studentId);
-      setSuccessMsg('Member removed from project.');
-      openProjectDetails(activeProject.id);
+      setSuccessMsg('Member removed from team.');
       setTimeout(() => setSuccessMsg(''), 4000);
+      openProjectDetails(activeProject.id);
     } catch (err) {
       setError(err.message || 'Failed to remove member');
     }
   };
 
-  const openEditModal = () => {
-    if (!activeProject) return;
-    setFormTitle(activeProject.title);
-    setFormDesc(activeProject.description || '');
-    setFormSkills(activeProject.requiredSkills || '');
-    setFormStatus(activeProject.status);
-    setShowEditModal(true);
-  };
-
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case 'OPEN':
-        return <span className="pill project-open">OPEN FOR MEMBERS</span>;
-      case 'IN_PROGRESS':
-        return <span className="pill project-in_progress">IN PROGRESS</span>;
-      case 'COMPLETED':
-        return <span className="pill project-completed">COMPLETED</span>;
-      case 'DRAFT':
-        return <span className="pill">DRAFT</span>;
-      default:
-        return <span className="pill">{status}</span>;
-    }
-  };
-
   return (
-    <div className="projects-container">
-      <div className="page-header">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* Header & Pitch Action */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
         <div>
-          <h2>Explore & Create Projects</h2>
-          <p>Discover student initiatives, match required skills, and assemble high-performing teams.</p>
+          <h1 style={{ fontSize: 24, fontWeight: 800 }}>Campus Project Directory</h1>
+          <p style={{ fontSize: 13.5, color: 'var(--text-muted)' }}>
+            Discover open student projects seeking teammates with your skills, or pitch your own idea.
+          </p>
         </div>
-        <button 
+
+        <button
           onClick={() => {
-            if (!loggedIn) {
-              navigate('/login');
-            } else {
-              setFormTitle('');
-              setFormDesc('');
-              setFormSkills('');
-              setFormStatus('OPEN');
-              setShowCreateModal(true);
-            }
+            if (!loggedIn) navigate('/login');
+            else setShowCreateModal(true);
           }}
-          className="primary"
+          className="btn btn-primary"
         >
-          <Plus size={18} />
-          Post New Project
+          <Plus size={16} /> Pitch New Project
         </button>
       </div>
 
+      {/* Success / Error Alerts */}
       {successMsg && (
-        <div style={{ background: '#ecfdf3', border: '1px solid #a6f4c5', color: '#16844a', padding: '12px 18px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <CheckCircle2 size={18} />
-          <span>{successMsg}</span>
+        <div style={{ background: 'var(--success-50)', color: 'var(--success-700)', padding: '12px 16px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--success-100)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5 }}>
+          <CheckCircle2 size={16} /> {successMsg}
         </div>
       )}
 
       {error && (
-        <div style={{ background: '#fff0ef', border: '1px solid #fecdd3', color: '#c94b3d', padding: '12px 18px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <AlertCircle size={18} />
-          <span>{error}</span>
+        <div style={{ background: 'var(--danger-50)', color: 'var(--danger-700)', padding: '12px 16px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--danger-100)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5 }}>
+          <AlertCircle size={16} /> {error}
         </div>
       )}
 
-      {/* Filter & Search Bar */}
-      <div className="filters-bar">
-        <form onSubmit={handleSearchSubmit} className="search" style={{ flex: '1 1 320px' }}>
-          <Search size={16} color="#8791a5" />
-          <input
-            type="text"
-            placeholder="Search projects by title, description, or keyword..."
-            value={searchKeyword}
-            onChange={(e) => setSearchKeyword(e.target.value)}
-          />
-        </form>
+      {/* Search & Filter Toolbar */}
+      <div className="card" style={{ padding: '16px 20px' }}>
+        <form onSubmit={handleSearchSubmit} style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, flex: 1, minWidth: 280 }}>
+            <div style={{ position: 'relative', flex: 1, minWidth: 220 }}>
+              <Search size={16} color="var(--text-muted)" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
+              <input
+                type="text"
+                className="form-input"
+                style={{ paddingLeft: 36 }}
+                placeholder="Search projects by title, keywords, or problem..."
+                value={searchKeyword}
+                onChange={(e) => setSearchKeyword(e.target.value)}
+              />
+            </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <input 
-            type="text"
-            placeholder="Filter by skill (e.g. React, Python)"
-            value={selectedSkill}
-            onChange={(e) => setSelectedSkill(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); loadProjects(); } }}
-            style={{ padding: '9px 12px', border: '1px solid #dfe5ef', borderRadius: '10px', fontSize: '13px', outline: 'none', background: '#fff' }}
-          />
-          <button type="button" onClick={loadProjects} className="secondary" style={{ padding: '9px 14px', fontSize: '13px' }}>
-            Filter
-          </button>
-        </div>
+            <div style={{ width: 200 }}>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="Filter by skill (e.g. React)"
+                value={selectedSkill}
+                onChange={(e) => setSelectedSkill(e.target.value)}
+              />
+            </div>
 
-        <div className="filter-group">
-          {['ALL', 'OPEN', 'IN_PROGRESS', 'COMPLETED'].map((st) => (
-            <button
-              key={st}
-              type="button"
-              className={`status-chip ${selectedStatus === st ? 'active' : ''}`}
-              onClick={() => setSelectedStatus(st)}
-            >
-              {st === 'ALL' ? 'All Statuses' : st.replace('_', ' ')}
+            <button type="submit" className="btn btn-secondary">
+              Search
             </button>
-          ))}
-        </div>
+          </div>
+
+          {/* Status Tabs */}
+          <div style={{ display: 'flex', gap: 6, background: 'var(--bg-subtle)', padding: 3, borderRadius: 'var(--radius-sm)' }}>
+            {['ALL', 'OPEN', 'IN_PROGRESS', 'COMPLETED'].map((st) => (
+              <button
+                key={st}
+                type="button"
+                onClick={() => setSelectedStatus(st)}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 6,
+                  border: 'none',
+                  background: selectedStatus === st ? 'var(--bg-surface)' : 'transparent',
+                  color: selectedStatus === st ? 'var(--primary-700)' : 'var(--text-muted)',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  boxShadow: selectedStatus === st ? 'var(--shadow-xs)' : 'none'
+                }}
+              >
+                {st === 'ALL' ? 'All' : st.replace('_', ' ')}
+              </button>
+            ))}
+          </div>
+        </form>
       </div>
 
       {/* Projects Grid */}
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '60px 0', color: '#8791a5' }}>
-          Loading projects...
+        <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
+          <div style={{ display: 'inline-block', width: 32, height: 32, border: '3px solid var(--border-default)', borderTopColor: 'var(--primary-600)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+          <p style={{ marginTop: 12, fontSize: 13.5 }}>Loading campus projects...</p>
         </div>
       ) : projects.length === 0 ? (
-        <EmptyState
-          title="No projects found"
-          description="Try broadening your search keywords or skill filter, or be the first to post a new project!"
-        />
+        <div className="card" style={{ textAlign: 'center', padding: '60px 24px' }}>
+          <FolderGit2 size={48} color="var(--text-subtle)" style={{ margin: '0 auto 16px' }} />
+          <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>No projects found</h3>
+          <p style={{ fontSize: 13.5, color: 'var(--text-muted)', maxWidth: 460, margin: '0 auto 20px' }}>
+            No projects matched your search criteria. Try modifying your skill keywords or pitch a brand new project!
+          </p>
+          <button onClick={() => setShowCreateModal(true)} className="btn btn-primary btn-sm">
+            <Plus size={14} /> Pitch Project
+          </button>
+        </div>
       ) : (
         <div className="projects-grid">
           {projects.map((proj) => {
-            const skillList = proj.requiredSkills
-              ? proj.requiredSkills.split(',').map((s) => s.trim()).filter(Boolean)
-              : [];
+            const memberCount = proj.memberCount || proj.members?.length || 1;
+            const maxMembers = proj.maxMembers || 4;
+            const availableSeats = proj.availableSeats !== undefined ? proj.availableSeats : Math.max(0, maxMembers - memberCount);
+            const isLeader = proj.createdBy === currentUser?.id || proj.isCurrentUserLeader;
+            const isMember = proj.isCurrentUserMember;
+            const skills = (proj.requiredSkills || '').split(',').map((s) => s.trim()).filter(Boolean);
 
             return (
-              <div 
-                key={proj.id} 
+              <div
+                key={proj.id}
                 className="project-card"
                 onClick={() => openProjectDetails(proj.id)}
               >
                 <div>
                   <div className="project-card-header">
-                    {getStatusBadge(proj.status)}
-                    <span className="member-badge">
-                      <Users size={13} />
-                      {proj.memberCount} {proj.memberCount === 1 ? 'member' : 'members'}
+                    <span className={`badge ${
+                      proj.status === 'OPEN' ? 'badge-open' : proj.status === 'IN_PROGRESS' ? 'badge-in-progress' : 'badge-completed'
+                    }`}>
+                      {proj.status?.replace('_', ' ')}
+                    </span>
+
+                    <span className={`badge ${availableSeats > 0 ? 'badge-seats' : 'badge-seats-full'}`}>
+                      {availableSeats > 0 ? `${memberCount}/${maxMembers} members (${availableSeats} seat${availableSeats > 1 ? 's' : ''} open)` : `${memberCount}/${maxMembers} (Full)`}
                     </span>
                   </div>
 
                   <h3 className="project-card-title">{proj.title}</h3>
-                  <p className="project-card-desc">{proj.description || 'No description provided.'}</p>
+                  <p className="project-card-desc">{proj.description}</p>
 
-                  {skillList.length > 0 && (
+                  {skills.length > 0 && (
                     <div className="skills-wrap">
-                      {skillList.slice(0, 4).map((sk, idx) => (
-                        <span key={idx} className="skill-tag accent">{sk}</span>
+                      {skills.slice(0, 4).map((sk) => (
+                        <span key={sk} className="skill-tag">
+                          {sk}
+                        </span>
                       ))}
-                      {skillList.length > 4 && (
-                        <span className="skill-tag">+{skillList.length - 4} more</span>
+                      {skills.length > 4 && (
+                        <span className="skill-tag" style={{ color: 'var(--text-subtle)' }}>
+                          +{skills.length - 4} more
+                        </span>
                       )}
                     </div>
                   )}
                 </div>
 
                 <div className="project-card-footer">
-                  <div className="project-author">
-                    <div className="mini-avatar" style={{ width: '24px', height: '24px', fontSize: '10px' }}>
-                      {proj.creatorName ? proj.creatorName.charAt(0).toUpperCase() : 'U'}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--primary-50)', color: 'var(--primary-700)', display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 700 }}>
+                      {proj.creatorName ? proj.creatorName.charAt(0).toUpperCase() : 'L'}
                     </div>
-                    <span>{proj.creatorName || 'Student'}</span>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-main)' }}>
+                        {proj.creatorName || 'Student Leader'}
+                      </div>
+                      <div style={{ fontSize: 10.5, color: 'var(--text-subtle)' }}>
+                        Project Lead
+                      </div>
+                    </div>
                   </div>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#315bea', fontWeight: 600 }}>
-                    Details <ArrowRight size={13} />
-                  </span>
+
+                  <div>
+                    {isLeader ? (
+                      <span className="badge badge-leader">You Lead</span>
+                    ) : isMember ? (
+                      <span className="badge badge-member">Joined</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openProjectDetails(proj.id);
+                        }}
+                        className="btn btn-outline-primary btn-sm"
+                        style={{ padding: '4px 10px', fontSize: 12 }}
+                      >
+                        View Details
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             );
@@ -401,294 +487,374 @@ export default function Projects() {
         </div>
       )}
 
-      {/* Project Details Modal */}
+      {/* Project Detail Modal */}
       {showDetailModal && activeProject && (
-        <div className="modal-backdrop" onClick={() => setShowDetailModal(false)}>
-          <div className="modal project-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-head">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                {getStatusBadge(activeProject.status)}
-                {activeProject.isCurrentUserLeader && (
-                  <span className="pill admin" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Shield size={11} /> Project Leader
-                  </span>
-                )}
-                {activeProject.isCurrentUserMember && !activeProject.isCurrentUserLeader && (
-                  <span className="pill student" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <UserCheck size={11} /> Team Member
-                  </span>
-                )}
+        <div className="modal-backdrop">
+          <div className="modal-card" style={{ maxWidth: 680 }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span className={`badge ${
+                  activeProject.status === 'OPEN' ? 'badge-open' : activeProject.status === 'IN_PROGRESS' ? 'badge-in-progress' : 'badge-completed'
+                }`}>
+                  {activeProject.status?.replace('_', ' ')}
+                </span>
+                <h3 style={{ fontSize: 18, fontWeight: 800 }}>{activeProject.title}</h3>
               </div>
-              <button className="icon-btn" onClick={() => setShowDetailModal(false)}>
-                <X size={18} />
+              <button
+                onClick={closeDetailModal}
+                style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-muted)' }}
+              >
+                ✕
               </button>
             </div>
 
-            <h2 style={{ margin: '0 0 10px', fontSize: '22px', color: '#172033' }}>
-              {activeProject.title}
-            </h2>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', fontSize: '12px', color: '#8791a5', marginBottom: '18px' }}>
-              <span>Created by <strong>{activeProject.creatorName}</strong></span>
-              <span>•</span>
-              <span>{activeProject.createdAt ? new Date(activeProject.createdAt).toLocaleDateString() : ''}</span>
-              <span>•</span>
-              <span>{activeProject.memberCount} Team Members</span>
-            </div>
-
-            {/* Navigation Tabs */}
-            <div className="tabs-nav">
-              <button 
-                className={`tab-btn ${detailTab === 'overview' ? 'active' : ''}`}
+            {/* Modal Tabs */}
+            <div style={{ display: 'flex', gap: 8, padding: '12px 24px 0', borderBottom: '1px solid var(--border-default)', background: 'var(--bg-subtle)' }}>
+              <button
                 onClick={() => setDetailTab('overview')}
+                style={{
+                  padding: '8px 14px',
+                  border: 'none',
+                  background: 'none',
+                  borderBottom: detailTab === 'overview' ? '2px solid var(--primary-600)' : '2px solid transparent',
+                  color: detailTab === 'overview' ? 'var(--primary-600)' : 'var(--text-muted)',
+                  fontWeight: 600,
+                  fontSize: 13,
+                  cursor: 'pointer'
+                }}
               >
                 Overview
               </button>
-              <button 
-                className={`tab-btn ${detailTab === 'members' ? 'active' : ''}`}
+              <button
                 onClick={() => setDetailTab('members')}
+                style={{
+                  padding: '8px 14px',
+                  border: 'none',
+                  background: 'none',
+                  borderBottom: detailTab === 'members' ? '2px solid var(--primary-600)' : '2px solid transparent',
+                  color: detailTab === 'members' ? 'var(--primary-600)' : 'var(--text-muted)',
+                  fontWeight: 600,
+                  fontSize: 13,
+                  cursor: 'pointer'
+                }}
               >
-                Team Members ({activeProject.members?.length || 0})
+                Team Roster ({activeProject.members?.length || activeProject.memberCount || 1} / {activeProject.maxMembers || 4})
               </button>
               {activeProject.isCurrentUserLeader && (
-                <button 
-                  className={`tab-btn ${detailTab === 'requests' ? 'active' : ''}`}
+                <button
                   onClick={() => setDetailTab('requests')}
+                  style={{
+                    padding: '8px 14px',
+                    border: 'none',
+                    background: 'none',
+                    borderBottom: detailTab === 'requests' ? '2px solid var(--primary-600)' : '2px solid transparent',
+                    color: detailTab === 'requests' ? 'var(--primary-600)' : 'var(--text-muted)',
+                    fontWeight: 600,
+                    fontSize: 13,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}
                 >
-                  Join Requests ({joinRequests.filter(r => r.status === 'PENDING').length})
+                  Join Requests
+                  {joinRequests.filter((r) => r.status === 'PENDING').length > 0 && (
+                    <span style={{ padding: '1px 6px', background: 'var(--warning-600)', color: '#fff', borderRadius: 999, fontSize: 10, fontWeight: 700 }}>
+                      {joinRequests.filter((r) => r.status === 'PENDING').length}
+                    </span>
+                  )}
                 </button>
               )}
             </div>
 
-            {/* Tab: Overview */}
-            {detailTab === 'overview' && (
-              <div>
-                <div style={{ marginBottom: '18px' }}>
-                  <h4 style={{ margin: '0 0 8px', fontSize: '13px', color: '#64748b', textTransform: 'uppercase' }}>Description</h4>
-                  <p style={{ margin: 0, fontSize: '14px', lineHeight: '1.65', color: '#334155', whiteSpace: 'pre-line' }}>
-                    {activeProject.description || 'No detailed description provided.'}
-                  </p>
-                </div>
+            <div className="modal-body">
+              {detailTab === 'overview' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                  <div>
+                    <h4 style={{ fontSize: 13, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
+                      Project Scope & Description
+                    </h4>
+                    <p style={{ fontSize: 14, color: 'var(--text-main)', lineHeight: 1.6, whiteSpace: 'pre-line' }}>
+                      {activeProject.description || 'No description provided.'}
+                    </p>
+                  </div>
 
-                <div style={{ marginBottom: '24px' }}>
-                  <h4 style={{ margin: '0 0 8px', fontSize: '13px', color: '#64748b', textTransform: 'uppercase' }}>Required Skills</h4>
-                  <div className="skills-wrap">
-                    {activeProject.requiredSkills
-                      ? activeProject.requiredSkills.split(',').map((sk, idx) => (
-                          <span key={idx} className="skill-tag accent" style={{ fontSize: '12px', padding: '5px 12px' }}>
-                            {sk.trim()}
-                          </span>
-                        ))
-                      : <span style={{ color: '#8791a5', fontSize: '13px' }}>None specified</span>}
+                  <div>
+                    <h4 style={{ fontSize: 13, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
+                      Required Technical Skills
+                    </h4>
+                    <div className="skills-wrap">
+                      {(activeProject.requiredSkills || '').split(',').map((s) => s.trim()).filter(Boolean).map((sk) => (
+                        <span key={sk} className="skill-tag" style={{ padding: '4px 10px', fontSize: 12.5 }}>
+                          {sk}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, background: 'var(--bg-subtle)', padding: 16, borderRadius: 'var(--radius-sm)' }}>
+                    <div>
+                      <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Project Lead</span>
+                      <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-main)' }}>{activeProject.creatorName || 'Student'}</div>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Lead Contact</span>
+                      <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--primary-700)' }}>{activeProject.creatorEmail || '—'}</div>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Team Capacity</span>
+                      <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-main)' }}>
+                        {activeProject.memberCount || activeProject.members?.length || 1} / {activeProject.maxMembers || 4} Members
+                      </div>
+                    </div>
                   </div>
                 </div>
+              )}
 
-                {/* Project Actions */}
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', borderTop: '1px solid #edf2f7', paddingTop: '18px', flexWrap: 'wrap' }}>
-                  {activeProject.isCurrentUserLeader ? (
-                    <>
-                      <button onClick={openEditModal} className="secondary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <Edit3 size={15} /> Edit Project
-                      </button>
-                      <button onClick={() => handleDeleteProject(activeProject.id)} className="secondary" style={{ color: '#c94b3d', borderColor: '#fecdd3', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <Trash2 size={15} /> Delete
-                      </button>
-                    </>
-                  ) : activeProject.isCurrentUserMember ? (
-                    <button 
-                      onClick={() => handleRemoveMember(currentUser?.id)} 
-                      className="secondary" 
-                      style={{ color: '#c94b3d', borderColor: '#fecdd3' }}
-                    >
-                      Leave Project Team
-                    </button>
-                  ) : activeProject.currentUserJoinRequestStatus === 'PENDING' ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <span className="pill" style={{ background: '#fff4df', color: '#a86c00', padding: '6px 12px', fontSize: '12px' }}>
-                        Join Request Pending Review
-                      </span>
-                      <button onClick={handleCancelJoinRequest} className="secondary" style={{ fontSize: '12px', padding: '6px 12px' }}>
-                        Cancel Request
-                      </button>
-                    </div>
-                  ) : activeProject.status === 'OPEN' ? (
-                    <button 
-                      onClick={() => {
-                        if (!loggedIn) navigate('/login');
-                        else setShowJoinModal(true);
+              {detailTab === 'members' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {(activeProject.members || []).map((m) => (
+                    <div
+                      key={m.id || m.studentId}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: 12,
+                        border: '1px solid var(--border-default)',
+                        borderRadius: 'var(--radius-sm)'
                       }}
-                      className="primary"
                     >
-                      <Send size={15} /> Request to Join Team
-                    </button>
-                  ) : (
-                    <span style={{ color: '#8791a5', fontSize: '13px' }}>This project is currently not accepting new members.</span>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Tab: Team Members */}
-            {detailTab === 'members' && (
-              <div className="member-list-grid">
-                {activeProject.members?.map((mem) => (
-                  <div key={mem.id} className="member-row">
-                    <div className="member-info">
-                      <div className="mini-avatar">
-                        {mem.studentName ? mem.studentName.charAt(0).toUpperCase() : 'S'}
-                      </div>
-                      <div>
-                        <strong style={{ fontSize: '14px', color: '#172033', display: 'block' }}>
-                          {mem.studentName}
-                        </strong>
-                        <span style={{ fontSize: '12px', color: '#64748b' }}>
-                          {mem.studentEmail} {mem.department ? `• ${mem.department}` : ''}
-                        </span>
-                        {mem.skills && (
-                          <div style={{ marginTop: '4px', fontSize: '11px', color: '#315bea' }}>
-                            {mem.skills}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--primary-50)', color: 'var(--primary-700)', display: 'grid', placeItems: 'center', fontWeight: 700, fontSize: 12 }}>
+                          {m.studentName ? m.studentName.charAt(0).toUpperCase() : 'M'}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 13.5, fontWeight: 700 }}>
+                            {m.studentName}{m.studentId === currentUser?.id ? ' (You)' : ''}
                           </div>
+                          <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
+                            {m.department || 'College Dept'} • {m.skills || 'General Contributor'}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span className={`badge ${m.role === 'LEADER' ? 'badge-leader' : 'badge-member'}`}>
+                          {m.role}
+                        </span>
+
+                        {activeProject.isCurrentUserLeader && m.role !== 'LEADER' && (
+                          <button
+                            onClick={() => handleRemoveMember(m.studentId)}
+                            title="Remove member"
+                            className="btn btn-ghost btn-sm"
+                            style={{ color: 'var(--danger-600)', padding: 4 }}
+                          >
+                            <Trash2 size={15} />
+                          </button>
                         )}
                       </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span className={`pill ${mem.role === 'LEADER' ? 'admin' : 'student'}`}>
-                        {mem.role}
-                      </span>
-                      {activeProject.isCurrentUserLeader && mem.role !== 'LEADER' && (
-                        <button 
-                          onClick={() => handleRemoveMember(mem.studentId)}
-                          className="icon-btn"
-                          title="Remove member"
-                          style={{ color: '#c94b3d' }}
-                        >
-                          <X size={15} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
 
-            {/* Tab: Join Requests (Leader Only) */}
-            {detailTab === 'requests' && activeProject.isCurrentUserLeader && (
-              <div>
-                {loadingRequests ? (
-                  <div style={{ textAlign: 'center', padding: '24px', color: '#8791a5' }}>Loading requests...</div>
-                ) : joinRequests.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '30px', color: '#8791a5' }}>
-                    No join requests for this project yet.
-                  </div>
-                ) : (
-                  joinRequests.map((req) => (
-                    <div key={req.id} className="request-item">
-                      <div className="request-item-header">
-                        <div>
-                          <strong style={{ fontSize: '14px', color: '#172033' }}>{req.studentName}</strong>
-                          <span style={{ fontSize: '12px', color: '#64748b', display: 'block' }}>
-                            {req.studentEmail} {req.studentDepartment ? `• ${req.studentDepartment}` : ''}
+              {detailTab === 'requests' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {loadingRequests ? (
+                    <div style={{ textAlign: 'center', padding: 20, color: 'var(--text-muted)' }}>Loading join requests...</div>
+                  ) : joinRequests.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: 30, color: 'var(--text-muted)' }}>
+                      No join requests received yet.
+                    </div>
+                  ) : (
+                    joinRequests.map((req) => (
+                      <div
+                        key={req.id}
+                        style={{
+                          padding: 14,
+                          border: '1px solid var(--border-default)',
+                          borderRadius: 'var(--radius-sm)',
+                          background: req.status === 'PENDING' ? 'var(--bg-surface)' : 'var(--bg-subtle)'
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+                          <div>
+                            <strong style={{ fontSize: 14 }}>{req.studentName}</strong>
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                              {req.department} • Skills: {req.skills || 'N/A'}
+                            </div>
+                          </div>
+                          <span className={`badge ${req.status === 'PENDING' ? 'badge-in-progress' : req.status === 'ACCEPTED' ? 'badge-open' : 'badge-closed'}`}>
+                            {req.status}
                           </span>
-                          {req.studentSkills && (
-                            <span style={{ fontSize: '11px', color: '#315bea', display: 'block', marginTop: '3px' }}>
-                              Skills: {req.studentSkills}
-                            </span>
-                          )}
                         </div>
-                        <span className={`pill ${req.status === 'ACCEPTED' ? 'faculty' : req.status === 'REJECTED' ? 'risk' : 'admin'}`}>
-                          {req.status}
-                        </span>
+
+                        {req.message && (
+                          <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', background: 'var(--bg-subtle)', padding: 8, borderRadius: 6, margin: '8px 0' }}>
+                            "{req.message}"
+                          </p>
+                        )}
+
+                        {req.status === 'PENDING' && (
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 }}>
+                            <button
+                              onClick={() => handleRespondRequest(req.id, 'REJECTED')}
+                              className="btn btn-secondary btn-sm"
+                            >
+                              Decline
+                            </button>
+                            <button
+                              onClick={() => handleRespondRequest(req.id, 'ACCEPTED')}
+                              className="btn btn-primary btn-sm"
+                            >
+                              Accept to Team
+                            </button>
+                          </div>
+                        )}
                       </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
 
-                      {req.message && (
-                        <p style={{ margin: '6px 0 0', fontSize: '13px', color: '#475569', background: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid #edf2f7' }}>
-                          "{req.message}"
-                        </p>
-                      )}
-
-                      {req.status === 'PENDING' && (
-                        <div className="request-item-actions">
-                          <button 
-                            onClick={() => handleRespondRequest(req.id, 'ACCEPTED')}
-                            className="primary" 
-                            style={{ padding: '6px 14px', fontSize: '12px', background: '#16844a' }}
-                          >
-                            Accept
-                          </button>
-                          <button 
-                            onClick={() => handleRespondRequest(req.id, 'REJECTED')}
-                            className="secondary" 
-                            style={{ padding: '6px 14px', fontSize: '12px', color: '#c94b3d' }}
-                          >
-                            Decline
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ))
+            <div className="modal-footer" style={{ justifyContent: 'space-between' }}>
+              <div>
+                {activeProject.isCurrentUserLeader && (
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={handleOpenEdit} className="btn btn-secondary btn-sm">
+                      <Edit3 size={14} /> Edit Project
+                    </button>
+                    <button onClick={() => handleDeleteProject(activeProject.id)} className="btn btn-ghost btn-sm" style={{ color: 'var(--danger-600)' }}>
+                      <Trash2 size={14} /> Delete
+                    </button>
+                  </div>
                 )}
               </div>
-            )}
+
+              <div style={{ display: 'flex', gap: 10 }}>
+                {activeProject.isCurrentUserLeader || activeProject.isCurrentUserMember ? (
+                  <button
+                    onClick={() => {
+                      setShowDetailModal(false);
+                      navigate('/tasks');
+                    }}
+                    className="btn btn-primary btn-sm"
+                  >
+                    <Kanban size={14} /> Open Sprint Workspace
+                  </button>
+                ) : activeProject.currentUserJoinRequestStatus === 'PENDING' ? (
+                  <button
+                    onClick={() => handleCancelRequest(activeProject.currentUserJoinRequestId)}
+                    className="btn btn-secondary btn-sm"
+                    style={{ color: 'var(--danger-600)' }}
+                  >
+                    Withdraw Join Request
+                  </button>
+                ) : (
+                  <button
+                    disabled={(activeProject.availableSeats !== undefined && activeProject.availableSeats <= 0) || (activeProject.memberCount >= (activeProject.maxMembers || 4))}
+                    onClick={() => {
+                      if (!loggedIn) navigate('/login');
+                      else setShowJoinModal(true);
+                    }}
+                    className="btn btn-primary btn-sm"
+                  >
+                    {(activeProject.availableSeats !== undefined && activeProject.availableSeats <= 0) || (activeProject.memberCount >= (activeProject.maxMembers || 4))
+                      ? 'Team Capacity Reached'
+                      : 'Request to Join Team'}
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Post Project Modal */}
+      {/* Create Project Modal */}
       {showCreateModal && (
-        <div className="modal-backdrop" onClick={() => setShowCreateModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-head">
-              <h3>Post New Project</h3>
-              <button className="icon-btn" onClick={() => setShowCreateModal(false)}>
-                <X size={18} />
-              </button>
+        <div className="modal-backdrop">
+          <div className="modal-card" style={{ maxWidth: 580 }}>
+            <div className="modal-header">
+              <h3 style={{ fontSize: 18, fontWeight: 800 }}>Pitch New Student Project</h3>
+              <button onClick={() => setShowCreateModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}>✕</button>
             </div>
-            <form onSubmit={handleCreateProject} className="form-grid">
-              <label className="full">
-                Project Title *
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. AI-Powered Smart Campus Navigation"
-                  value={formTitle}
-                  onChange={(e) => setFormTitle(e.target.value)}
-                />
-              </label>
 
-              <label className="full">
-                Description
-                <textarea
-                  rows={4}
-                  placeholder="Describe the problem, project goals, architecture, and what teammates will work on..."
-                  value={formDesc}
-                  onChange={(e) => setFormDesc(e.target.value)}
-                />
-              </label>
+            <form onSubmit={handleCreateProject}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div className="form-group">
+                  <label className="form-label">Project Title *</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. Smart Campus IoT Energy Dashboard"
+                    value={formTitle}
+                    onChange={(e) => setFormTitle(e.target.value)}
+                    required
+                  />
+                </div>
 
-              <label className="full">
-                Required Skills (comma separated)
-                <input
-                  type="text"
-                  placeholder="e.g. React, Spring Boot, MySQL, Docker"
-                  value={formSkills}
-                  onChange={(e) => setFormSkills(e.target.value)}
-                />
-              </label>
+                <div className="form-group">
+                  <label className="form-label">Problem Scope & Description *</label>
+                  <textarea
+                    className="form-textarea"
+                    placeholder="Describe the problem, project objectives, tech architecture, and what deliverables teammates will build..."
+                    value={formDesc}
+                    onChange={(e) => setFormDesc(e.target.value)}
+                    required
+                  />
+                </div>
 
-              <label>
-                Project Status
-                <select value={formStatus} onChange={(e) => setFormStatus(e.target.value)}>
-                  <option value="OPEN">OPEN (Looking for team members)</option>
-                  <option value="DRAFT">DRAFT (Not visible to applicants)</option>
-                  <option value="IN_PROGRESS">IN PROGRESS</option>
-                </select>
-              </label>
+                <div className="form-group">
+                  <label className="form-label">Required Technical Skills (comma-separated)</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. React, Spring Boot, MySQL, MQTT, Docker"
+                    value={formSkills}
+                    onChange={(e) => setFormSkills(e.target.value)}
+                  />
+                </div>
 
-              <div className="form-actions">
-                <button type="button" onClick={() => setShowCreateModal(false)} className="secondary">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                  <div className="form-group">
+                    <label className="form-label">Team Capacity (Max Members)</label>
+                    <input
+                      type="number"
+                      min={2}
+                      max={10}
+                      className="form-input"
+                      value={formMaxMembers}
+                      onChange={(e) => setFormMaxMembers(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Initial Status</label>
+                    <select
+                      className="form-select"
+                      value={formStatus}
+                      onChange={(e) => setFormStatus(e.target.value)}
+                    >
+                      <option value="OPEN">OPEN (Recruiting)</option>
+                      <option value="IN_PROGRESS">IN_PROGRESS (Sprint Active)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ padding: '10px 14px', background: 'var(--primary-50)', borderRadius: 8, color: 'var(--primary-800)', fontSize: 12 }}>
+                  <strong>Note:</strong> As the project creator, you will automatically be assigned as the <strong>Team Leader</strong>.
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button type="button" onClick={() => setShowCreateModal(false)} className="btn btn-secondary">
                   Cancel
                 </button>
-                <button type="submit" disabled={submitting} className="primary">
-                  {submitting ? 'Publishing...' : 'Publish Project'}
+                <button type="submit" disabled={submitting} className="btn btn-primary">
+                  {submitting ? 'Creating...' : 'Pitch & Post Project'}
                 </button>
               </div>
             </form>
@@ -697,59 +863,79 @@ export default function Projects() {
       )}
 
       {/* Edit Project Modal */}
-      {showEditModal && (
-        <div className="modal-backdrop" onClick={() => setShowEditModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-head">
-              <h3>Edit Project</h3>
-              <button className="icon-btn" onClick={() => setShowEditModal(false)}>
-                <X size={18} />
-              </button>
+      {showEditModal && activeProject && (
+        <div className="modal-backdrop">
+          <div className="modal-card" style={{ maxWidth: 580 }}>
+            <div className="modal-header">
+              <h3 style={{ fontSize: 18, fontWeight: 800 }}>Edit Project Details</h3>
+              <button onClick={() => setShowEditModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}>✕</button>
             </div>
-            <form onSubmit={handleUpdateProject} className="form-grid">
-              <label className="full">
-                Project Title *
-                <input
-                  type="text"
-                  required
-                  value={formTitle}
-                  onChange={(e) => setFormTitle(e.target.value)}
-                />
-              </label>
 
-              <label className="full">
-                Description
-                <textarea
-                  rows={4}
-                  value={formDesc}
-                  onChange={(e) => setFormDesc(e.target.value)}
-                />
-              </label>
+            <form onSubmit={handleUpdateProject}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div className="form-group">
+                  <label className="form-label">Project Title</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={formTitle}
+                    onChange={(e) => setFormTitle(e.target.value)}
+                    required
+                  />
+                </div>
 
-              <label className="full">
-                Required Skills (comma separated)
-                <input
-                  type="text"
-                  value={formSkills}
-                  onChange={(e) => setFormSkills(e.target.value)}
-                />
-              </label>
+                <div className="form-group">
+                  <label className="form-label">Description</label>
+                  <textarea
+                    className="form-textarea"
+                    value={formDesc}
+                    onChange={(e) => setFormDesc(e.target.value)}
+                  />
+                </div>
 
-              <label>
-                Status
-                <select value={formStatus} onChange={(e) => setFormStatus(e.target.value)}>
-                  <option value="OPEN">OPEN</option>
-                  <option value="IN_PROGRESS">IN PROGRESS</option>
-                  <option value="COMPLETED">COMPLETED</option>
-                  <option value="DRAFT">DRAFT</option>
-                </select>
-              </label>
+                <div className="form-group">
+                  <label className="form-label">Required Skills</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={formSkills}
+                    onChange={(e) => setFormSkills(e.target.value)}
+                  />
+                </div>
 
-              <div className="form-actions">
-                <button type="button" onClick={() => setShowEditModal(false)} className="secondary">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                  <div className="form-group">
+                    <label className="form-label">Max Members</label>
+                    <input
+                      type="number"
+                      min={2}
+                      max={10}
+                      className="form-input"
+                      value={formMaxMembers}
+                      onChange={(e) => setFormMaxMembers(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Status</label>
+                    <select
+                      className="form-select"
+                      value={formStatus}
+                      onChange={(e) => setFormStatus(e.target.value)}
+                    >
+                      <option value="OPEN">OPEN</option>
+                      <option value="IN_PROGRESS">IN_PROGRESS</option>
+                      <option value="COMPLETED">COMPLETED</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button type="button" onClick={() => setShowEditModal(false)} className="btn btn-secondary">
                   Cancel
                 </button>
-                <button type="submit" disabled={submitting} className="primary">
+                <button type="submit" disabled={submitting} className="btn btn-primary">
                   {submitting ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
@@ -758,36 +944,42 @@ export default function Projects() {
         </div>
       )}
 
-      {/* Send Join Request Pitch Modal */}
+      {/* Join Request Pitch Modal */}
       {showJoinModal && activeProject && (
-        <div className="modal-backdrop" onClick={() => setShowJoinModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-head">
-              <h3>Request to Join Team</h3>
-              <button className="icon-btn" onClick={() => setShowJoinModal(false)}>
-                <X size={18} />
-              </button>
+        <div className="modal-backdrop">
+          <div className="modal-card" style={{ maxWidth: 520 }}>
+            <div className="modal-header">
+              <h3 style={{ fontSize: 18, fontWeight: 800 }}>Request to Join Team</h3>
+              <button onClick={() => setShowJoinModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}>✕</button>
             </div>
-            <p style={{ margin: '0 0 14px', fontSize: '13px', color: '#64748b' }}>
-              Send a note to <strong>{activeProject.creatorName}</strong> explaining why you would be a great addition to <em>{activeProject.title}</em>.
-            </p>
+
             <form onSubmit={handleSendJoinRequest}>
-              <label style={{ display: 'grid', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#566277', marginBottom: '14px' }}>
-                Pitch Note (Optional)
-                <textarea
-                  rows={4}
-                  placeholder="Mention your key skills, relevant coursework, or projects you have built..."
-                  value={joinPitch}
-                  onChange={(e) => setJoinPitch(e.target.value)}
-                  style={{ width: '100%', padding: '10px', border: '1px solid #dfe5ef', borderRadius: '9px', font: 'inherit', outline: 'none' }}
-                />
-              </label>
-              <div className="form-actions">
-                <button type="button" onClick={() => setShowJoinModal(false)} className="secondary">
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Joining Project:</div>
+                  <strong style={{ fontSize: 15 }}>{activeProject.title}</strong>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">
+                    Your Pitch to Project Leader ({activeProject.creatorName || 'Leader'})
+                  </label>
+                  <textarea
+                    className="form-textarea"
+                    placeholder="Introduce your relevant experience, technical skills, coursework, and what deliverables you can contribute to this project..."
+                    value={joinPitch}
+                    onChange={(e) => setJoinPitch(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button type="button" onClick={() => setShowJoinModal(false)} className="btn btn-secondary">
                   Cancel
                 </button>
-                <button type="submit" disabled={submitting} className="primary">
-                  {submitting ? 'Sending...' : 'Send Request'}
+                <button type="submit" disabled={submitting} className="btn btn-primary">
+                  {submitting ? 'Sending...' : 'Submit Pitch & Request'}
                 </button>
               </div>
             </form>

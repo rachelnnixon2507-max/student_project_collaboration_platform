@@ -1,49 +1,88 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  FolderKanban, Users, Bell, User, Plus, Search, 
-  ArrowRight, ShieldCheck, Sparkles, CheckCircle2 
+import {
+  FolderGit2,
+  Users2,
+  Kanban,
+  Bell,
+  Plus,
+  ArrowRight,
+  Sparkles,
+  CheckCircle2,
+  Clock,
+  ChevronRight,
+  GraduationCap,
+  MessageSquare,
+  AlertCircle,
+  Cpu,
+  Activity,
+  Terminal
 } from 'lucide-react';
-import PageHeader from '../components/PageHeader';
 import { getUser, isAuthenticated } from '../services/adminService';
-import { 
-  fetchMyCreatedProjects, fetchMyJoinedProjects, 
-  fetchUnreadNotificationCount, fetchProjects 
+import {
+  fetchMyCreatedProjects,
+  fetchMyJoinedProjects,
+  fetchUnreadNotificationCount,
+  fetchProjects,
+  fetchProjectJoinRequests
 } from '../services/projectService';
-import '../styles/admin.css';
-import '../styles/member1.css';
+import { fetchMyTasks, fetchMatchingProjectsForStudent } from '../services/collaborationService';
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const user = getUser();
   const loggedIn = isAuthenticated();
 
-  const [createdCount, setCreatedCount] = useState(0);
-  const [joinedCount, setJoinedCount] = useState(0);
+  const [createdProjects, setCreatedProjects] = useState([]);
+  const [joinedProjects, setJoinedProjects] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [recentProjects, setRecentProjects] = useState([]);
+  const [myTasks, setMyTasks] = useState([]);
+  const [recommendedProjects, setRecommendedProjects] = useState([]);
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!loggedIn) {
+      navigate('/login');
+      return;
+    }
     loadDashboardData();
-  }, [loggedIn]);
+  }, [loggedIn, navigate]);
 
   const loadDashboardData = async () => {
     setLoading(true);
     try {
-      const publicProjects = await fetchProjects({ page: 0, size: 4 });
-      setRecentProjects(publicProjects?.content || []);
+      const [created, joined, unreadRes, tasks, matchedRes] = await Promise.all([
+        fetchMyCreatedProjects().catch(() => []),
+        fetchMyJoinedProjects().catch(() => []),
+        fetchUnreadNotificationCount().catch(() => ({ unreadCount: 0 })),
+        fetchMyTasks().catch(() => []),
+        fetchMatchingProjectsForStudent(user?.id || null, 3).catch(() => []),
+      ]);
 
-      if (loggedIn) {
-        const [myCreated, myJoined, unreadRes] = await Promise.all([
-          fetchMyCreatedProjects().catch(() => []),
-          fetchMyJoinedProjects().catch(() => []),
-          fetchUnreadNotificationCount().catch(() => ({ unreadCount: 0 })),
-        ]);
-        setCreatedCount(myCreated.length);
-        setJoinedCount(myJoined.length);
-        setUnreadCount(unreadRes.unreadCount || 0);
+      setCreatedProjects(created || []);
+      setJoinedProjects(joined || []);
+      setUnreadCount(unreadRes?.unreadCount || 0);
+      setMyTasks(tasks || []);
+
+      if (matchedRes && matchedRes.length > 0) {
+        setRecommendedProjects(matchedRes);
+      } else {
+        const publicRes = await fetchProjects({ page: 0, size: 3 });
+        setRecommendedProjects(publicRes?.content || []);
       }
+
+      let pendingTotal = 0;
+      if (created && created.length > 0) {
+        const reqPromises = created.map((p) => fetchProjectJoinRequests(p.id).catch(() => []));
+        const allReqs = await Promise.all(reqPromises);
+        allReqs.forEach((list) => {
+          if (Array.isArray(list)) {
+            pendingTotal += list.filter((r) => r.status === 'PENDING').length;
+          }
+        });
+      }
+      setPendingRequestsCount(pendingTotal);
     } catch (e) {
       console.error(e);
     } finally {
@@ -51,96 +90,269 @@ export default function Dashboard() {
     }
   };
 
+  const institutionalId = user?.institutionalId || 'STU10001';
+
   return (
-    <div className="projects-container">
-      <div className="page-header">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* HUD Command Center Banner */}
+      <div className="card card-hud" style={{
+        background: 'linear-gradient(135deg, rgba(8, 16, 38, 0.9) 0%, rgba(18, 30, 68, 0.85) 100%)',
+        border: '1px solid var(--border-strong)',
+        borderRadius: 'var(--radius-lg)',
+        padding: '34px 30px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: 20,
+        boxShadow: '0 12px 36px rgba(0, 0, 0, 0.6), 0 0 24px rgba(0, 240, 255, 0.15)'
+      }}>
         <div>
-          <h2>Workspace Dashboard</h2>
-          <p>Welcome{user ? `, ${user.name}` : ''}! Track your projects, team collaborations, and updates.</p>
-        </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button onClick={() => navigate('/projects')} className="primary">
-            <Plus size={16} /> Post Project
-          </button>
-        </div>
-      </div>
-
-      {/* Metrics Row */}
-      <div className="grid four">
-        <div className="stat" style={{ cursor: 'pointer' }} onClick={() => navigate('/projects')}>
-          <span>My Projects</span>
-          <b style={{ color: '#315bea' }}>{loggedIn ? createdCount : '—'}</b>
-        </div>
-        <div className="stat" style={{ cursor: 'pointer' }} onClick={() => navigate('/teams')}>
-          <span>Active Teams</span>
-          <b style={{ color: '#16844a' }}>{loggedIn ? joinedCount : '—'}</b>
-        </div>
-        <div className="stat" style={{ cursor: 'pointer' }} onClick={() => navigate('/notifications')}>
-          <span>Unread Notifications</span>
-          <b style={{ color: unreadCount > 0 ? '#c94b3d' : '#8791a5' }}>
-            {loggedIn ? unreadCount : '—'}
-          </b>
-        </div>
-        <div className="stat" style={{ cursor: 'pointer' }} onClick={() => navigate('/profile')}>
-          <span>Student Profile</span>
-          <b style={{ fontSize: '18px', color: '#526076', marginTop: '18px' }}>
-            {loggedIn ? 'Active' : 'Sign In'}
-          </b>
-        </div>
-      </div>
-
-      {/* Quick Discovery Section */}
-      <div className="panel" style={{ marginTop: '10px' }}>
-        <div className="panel-title">
-          <div>
-            <h3>Recent Projects Open for Collaboration</h3>
-            <p>Discover student projects seeking teammates with your skills.</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+            <span style={{
+              padding: '3px 10px',
+              background: 'rgba(0, 240, 255, 0.12)',
+              border: '1px solid rgba(0, 240, 255, 0.4)',
+              borderRadius: 'var(--radius-pill)',
+              fontSize: 11,
+              fontWeight: 700,
+              fontFamily: 'var(--font-mono)',
+              color: 'var(--neon-cyan)',
+              letterSpacing: '0.06em'
+            }}>
+              // STUDENT COMMAND NODE
+            </span>
+            <span style={{ fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
+              NODE_ID: <strong style={{ color: '#fff' }}>{institutionalId}</strong>
+            </span>
           </div>
-          <button onClick={() => navigate('/projects')} className="secondary" style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            Explore All <ArrowRight size={14} />
-          </button>
-        </div>
-
-        {recentProjects.length === 0 ? (
-          <p style={{ color: '#8791a5', fontSize: '13px', textAlign: 'center', padding: '30px 0' }}>
-            No open projects found. Be the first to post a new project!
+          <h1 style={{ fontSize: 26, fontWeight: 800, color: '#ffffff', marginBottom: 8, letterSpacing: '0.02em' }}>
+            Welcome to the Matrix, {user?.name || 'Student Lead'}
+          </h1>
+          <p style={{ fontSize: 14, color: 'var(--text-secondary)', maxWidth: 640, lineHeight: 1.6 }}>
+            Manage your project sprints, monitor team velocity, review applicant pitches, and coordinate capstone deliverables.
           </p>
-        ) : (
-          <div className="projects-grid">
-            {recentProjects.map((p) => (
-              <div 
-                key={p.id} 
-                className="project-card" 
-                onClick={() => navigate('/projects')}
-                style={{ padding: '18px' }}
-              >
-                <div>
-                  <div className="project-card-header">
-                    <span className="pill project-open">{p.status}</span>
-                    <span className="member-badge">
-                      <Users size={12} /> {p.memberCount}
-                    </span>
-                  </div>
-                  <h4 style={{ margin: '0 0 6px', fontSize: '15px', color: '#172033' }}>{p.title}</h4>
-                  <p className="project-card-desc" style={{ WebkitLineClamp: 2, marginBottom: '12px' }}>
-                    {p.description || 'No description'}
-                  </p>
-                  {p.requiredSkills && (
-                    <div className="skills-wrap" style={{ marginBottom: '8px' }}>
-                      {p.requiredSkills.split(',').slice(0, 3).map((sk, idx) => (
-                        <span key={idx} className="skill-tag accent">{sk.trim()}</span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div className="project-card-footer" style={{ paddingTop: '10px' }}>
-                  <span style={{ fontSize: '11px' }}>By {p.creatorName}</span>
-                  <span style={{ color: '#315bea', fontSize: '12px', fontWeight: 600 }}>View Project →</span>
-                </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 12 }}>
+          <button
+            onClick={() => navigate('/projects?create=true')}
+            className="btn btn-primary"
+          >
+            <Plus size={16} /> Pitch Project
+          </button>
+          <button
+            onClick={() => navigate('/projects')}
+            className="btn btn-secondary"
+          >
+            Discover Projects
+          </button>
+        </div>
+      </div>
+
+      {/* Pending Join Requests Alert for Project Leaders */}
+      {pendingRequestsCount > 0 && (
+        <div style={{
+          background: 'rgba(245, 158, 11, 0.12)',
+          border: '1px solid rgba(245, 158, 11, 0.45)',
+          borderRadius: 'var(--radius-md)',
+          padding: '16px 20px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 12,
+          boxShadow: '0 0 16px rgba(245, 158, 11, 0.2)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 'var(--radius-sm)', background: 'rgba(245, 158, 11, 0.2)', color: 'var(--neon-amber)', display: 'grid', placeItems: 'center', border: '1px solid var(--neon-amber)' }}>
+              <AlertCircle size={20} />
+            </div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--neon-amber)' }}>
+                {pendingRequestsCount} Pending Team Join Request{pendingRequestsCount > 1 ? 's' : ''} Awaiting Review
               </div>
-            ))}
+              <div style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>
+                Students with matching skills have requested to join projects you lead.
+              </div>
+            </div>
           </div>
-        )}
+          <button
+            onClick={() => navigate('/teams')}
+            className="btn btn-sm"
+            style={{ background: 'var(--neon-amber)', color: '#000', fontWeight: 800 }}
+          >
+            Review Requests in Teams <ArrowRight size={14} />
+          </button>
+        </div>
+      )}
+
+      {/* KPI Stats Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/projects')}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 12.5, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>// PROJECTS LED</span>
+            <FolderGit2 size={20} color="var(--neon-cyan)" />
+          </div>
+          <div className="stat-value" style={{ color: 'var(--neon-cyan)' }}>{createdProjects.length}</div>
+        </div>
+
+        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/teams')}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 12.5, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>// TEAMS JOINED</span>
+            <Users2 size={20} color="var(--neon-emerald)" />
+          </div>
+          <div className="stat-value" style={{ color: 'var(--neon-emerald)' }}>{joinedProjects.length}</div>
+        </div>
+
+        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/tasks')}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 12.5, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>// SPRINT TASKS</span>
+            <Kanban size={20} color="var(--neon-violet)" />
+          </div>
+          <div className="stat-value" style={{ color: 'var(--neon-violet)' }}>{myTasks.length}</div>
+        </div>
+
+        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/notifications')}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 12.5, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>// SYSTEM UPDATES</span>
+            <Bell size={20} color={unreadCount > 0 ? 'var(--neon-crimson)' : 'var(--text-muted)'} />
+          </div>
+          <div className="stat-value" style={{ color: unreadCount > 0 ? 'var(--neon-crimson)' : '#fff' }}>
+            {unreadCount}
+          </div>
+        </div>
+      </div>
+
+      {/* Two Column Layout: Workspace Sprints & Recommended Projects */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 24 }}>
+        {/* Left Column: My Active Projects / Sprints */}
+        <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+            <h3 style={{ fontSize: 17, fontWeight: 700, color: '#fff' }}>Active Sprints & Workspaces</h3>
+            <button onClick={() => navigate('/tasks')} className="btn btn-ghost btn-sm" style={{ color: 'var(--neon-cyan)', fontWeight: 600 }}>
+              Open Kanban <ChevronRight size={14} />
+            </button>
+          </div>
+
+          {createdProjects.length === 0 && joinedProjects.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px 20px', background: 'rgba(5, 11, 26, 0.6)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', margin: 'auto 0' }}>
+              <FolderGit2 size={36} color="var(--text-subtle)" style={{ margin: '0 auto 12px' }} />
+              <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4, color: '#fff' }}>No Active Sprints</h4>
+              <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginBottom: 16 }}>
+                Pitch an idea to lead a team or find an existing project looking for your skills.
+              </p>
+              <button onClick={() => navigate('/projects')} className="btn btn-primary btn-sm">
+                Explore Projects
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {[...createdProjects, ...joinedProjects.filter(jp => !createdProjects.some(cp => cp.id === jp.id))].slice(0, 4).map((p, idx) => {
+                const isLeader = p.createdBy === user?.id || p.isCurrentUserLeader;
+                return (
+                  <div
+                    key={`sprint-${p.id || idx}`}
+                    onClick={() => navigate('/tasks')}
+                    style={{
+                      padding: 16,
+                      border: '1px solid var(--border-default)',
+                      borderRadius: 'var(--radius-sm)',
+                      background: 'rgba(6, 12, 28, 0.75)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: 12,
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--neon-cyan)'}
+                    onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--border-default)'}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                        <strong style={{ fontSize: 14.5, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {p.title}
+                        </strong>
+                        <span className={`badge ${isLeader ? 'badge-open' : 'badge-in-progress'}`} style={{ fontSize: 10 }}>
+                          {isLeader ? 'LEADER' : 'MEMBER'}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
+                        SEATS: {p.memberCount || 1} / {p.maxMembers || 4} • STATUS: <span style={{ color: 'var(--neon-cyan)' }}>{p.status}</span>
+                      </div>
+                    </div>
+                    <ChevronRight size={16} color="var(--neon-cyan)" />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Right Column: AI Smart Skill Matches / Discover Projects */}
+        <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Sparkles size={18} color="var(--neon-cyan)" />
+              <h3 style={{ fontSize: 17, fontWeight: 700, color: '#fff' }}>Recommended Matrix</h3>
+            </div>
+            <button onClick={() => navigate('/projects')} className="btn btn-ghost btn-sm" style={{ color: 'var(--neon-cyan)', fontWeight: 600 }}>
+              View All <ChevronRight size={14} />
+            </button>
+          </div>
+
+          {recommendedProjects.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px 20px', background: 'rgba(5, 11, 26, 0.6)', borderRadius: 'var(--radius-md)' }}>
+              <Sparkles size={36} color="var(--text-subtle)" style={{ margin: '0 auto 12px' }} />
+              <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Updating skill matches...</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {recommendedProjects.map((proj) => {
+                const projId = proj.projectId || proj.id;
+                const projTitle = proj.projectTitle || proj.title || 'Project';
+                const leadName = proj.leaderName || proj.creatorName || 'Student Leader';
+                const availableSeats = proj.availableSeats !== undefined ? proj.availableSeats : Math.max(0, (proj.maxMembers || 4) - (proj.memberCount || 1));
+                return (
+                  <div
+                    key={projId}
+                    style={{
+                      padding: 16,
+                      border: '1px solid var(--border-default)',
+                      borderRadius: 'var(--radius-sm)',
+                      background: 'rgba(6, 12, 28, 0.75)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 6 }}>
+                      <strong style={{ fontSize: 14.5, color: '#fff' }}>{projTitle}</strong>
+                      <span className={`badge ${availableSeats > 0 ? 'badge-open' : 'badge-completed'}`} style={{ fontSize: 10.5 }}>
+                        {availableSeats > 0 ? `${availableSeats} SEAT${availableSeats > 1 ? 'S' : ''} LEFT` : 'TEAM FULL'}
+                      </span>
+                    </div>
+
+                    <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginBottom: 10, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                      {proj.description}
+                    </p>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 11.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                        LEAD: {leadName}
+                      </span>
+                      <button
+                        onClick={() => projId && navigate(`/projects?id=${projId}`)}
+                        className="btn btn-secondary btn-sm"
+                        style={{ padding: '5px 12px', fontSize: 12 }}
+                      >
+                        View & Join
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

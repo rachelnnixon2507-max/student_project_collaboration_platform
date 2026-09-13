@@ -1,34 +1,33 @@
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   BarChart3,
-  BellRing,
-  CheckCircle2,
-  Clock3,
-  FolderKanban,
-  LogOut,
-  Megaphone,
-  Pencil,
-  Plus,
-  RefreshCw,
-  Search,
+  Users2,
+  FolderGit2,
   ShieldCheck,
+  Megaphone,
+  Clock,
   Star,
+  Plus,
   Trash2,
-  User,
-  UserCog,
-  Users,
+  Search,
+  RefreshCw,
   X,
-  AlertCircle
+  AlertCircle,
+  CheckCircle2,
+  Lock,
+  Unlock,
+  ChevronRight,
+  TrendingUp,
+  Award
 } from 'lucide-react';
-import PageHeader from '../components/PageHeader';
 import {
-  loginAdmin,
-  logoutAdmin,
+  getUser,
   isAuthenticated,
   isAdminAuthenticated,
-  getUser,
   fetchAdminStatus,
   setupAdmin,
+  loginAdmin,
   fetchAnalyticsLive,
   fetchUsers,
   updateUserStatus,
@@ -46,1392 +45,605 @@ import {
   fetchRolePermissions,
   updateRolePermissions
 } from '../services/adminService';
-import '../styles/admin.css';
 
 const tabs = [
   ['overview', 'Analytics', BarChart3],
-  ['users', 'Students & Faculty', Users],
-  ['projects', 'Projects', FolderKanban],
-  ['roles', 'Roles & Permissions', ShieldCheck],
+  ['users', 'Users & Institutional IDs', Users2],
+  ['projects', 'Projects Moderation', FolderGit2],
   ['announcements', 'Announcements', Megaphone],
-  ['delayed', 'Delayed Projects', Clock3],
-  ['reviews', 'Team Reviews', Star],
+  ['flagged', 'Delayed Sprints', Clock],
+  ['reviews', 'Peer Reviews', Star],
 ];
 
-const statusLabel = (value) =>
-  String(value || '')
-    .replaceAll('_', ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+export default function Admin() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const currentUser = getUser();
+  const isAdmin = currentUser?.role === 'ADMIN';
 
-const formatDate = (value) => {
-  if (!value) return 'N/A';
-  try {
-    return new Date(value).toLocaleDateString(undefined, {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
-  } catch (e) {
-    return String(value);
-  }
-};
-
-function Modal({ title, children, onClose }) {
-  return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
-      <div className="modal" onMouseDown={(e) => e.stopPropagation()}>
-        <div className="modal-head">
-          <h3>{title}</h3>
-          <button className="icon-btn" onClick={onClose}>
-            <X size={18} />
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function LoadingSpinner({ message = 'Loading data from backend...' }) {
-  return (
-    <div style={{ padding: '40px', textAlign: 'center', color: '#69758a' }}>
-      <RefreshCw size={24} style={{ animation: 'spin 1s linear infinite', marginBottom: '8px' }} />
-      <p>{message}</p>
-    </div>
-  );
-}
-
-function ErrorNotice({ message, onRetry }) {
-  return (
-    <div className="alert-banner" style={{ background: '#fff0ef', borderColor: '#f8d7da', color: '#721c24' }}>
-      <AlertCircle size={18} />
-      <div>
-        <b>Error</b>
-        <span>{message}</span>
-      </div>
-      {onRetry && (
-        <button className="secondary" style={{ marginLeft: 'auto' }} onClick={onRetry}>
-          Retry
-        </button>
-      )}
-    </div>
-  );
-}
-
-function AdminSetupForm({ onSetupSuccess }) {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
+  // Analytics State
+  const [analytics, setAnalytics] = useState(null);
+
+  // Users State
+  const [users, setUsers] = useState([]);
+  const [userRoleFilter, setUserRoleFilter] = useState('');
+  const [userSearch, setUserSearch] = useState('');
+
+  // Projects State
+  const [adminProjects, setAdminProjects] = useState([]);
+  const [projectStatusFilter, setProjectStatusFilter] = useState('');
+
+  // Announcements State
+  const [announcements, setAnnouncements] = useState([]);
+  const [newAnnTitle, setNewAnnTitle] = useState('');
+  const [newAnnContent, setNewAnnContent] = useState('');
+  const [newAnnScope, setNewAnnScope] = useState('ALL');
+  const [showAnnModal, setShowAnnModal] = useState(false);
+
+  // Flagged Projects State
+  const [flaggedProjects, setFlaggedProjects] = useState([]);
+
+  // Peer Reviews State
+  const [reviews, setReviews] = useState([]);
+  const [selectedReviewProjectId, setSelectedReviewProjectId] = useState(1);
+
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      navigate('/login');
       return;
     }
+    const searchParams = new URLSearchParams(location.search);
+    const tabParam = searchParams.get('tab');
+    if (tabParam && ['overview', 'users', 'projects', 'announcements', 'flagged', 'reviews'].includes(tabParam)) {
+      setActiveTab(tabParam);
+    }
+  }, [location.search, navigate]);
+
+  useEffect(() => {
+    loadTabContent(activeTab);
+  }, [activeTab]);
+
+  const loadTabContent = async (tab) => {
     setLoading(true);
     setError('');
     try {
-      await setupAdmin({ name, email, password, confirmPassword });
-      onSetupSuccess();
+      if (tab === 'overview') {
+        const data = await fetchAnalyticsLive();
+        setAnalytics(data);
+      } else if (tab === 'users') {
+        const data = await fetchUsers(userRoleFilter);
+        setUsers(Array.isArray(data) ? data : data?.content || []);
+      } else if (tab === 'projects') {
+        const data = await fetchProjects(projectStatusFilter);
+        setAdminProjects(Array.isArray(data) ? data : data?.content || []);
+      } else if (tab === 'announcements') {
+        const data = await fetchAnnouncements();
+        setAnnouncements(Array.isArray(data) ? data : []);
+      } else if (tab === 'flagged') {
+        const data = await fetchFlaggedProjects();
+        setFlaggedProjects(Array.isArray(data) ? data : []);
+      } else if (tab === 'reviews') {
+        const data = await fetchReviewsForProject(selectedReviewProjectId);
+        setReviews(Array.isArray(data) ? data : []);
+      }
     } catch (err) {
-      setError(err.message || 'First-time admin setup failed.');
+      setError(err.message || 'Failed to fetch admin data');
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <div style={{ maxWidth: '440px', margin: '40px auto', background: '#fff', padding: '32px', borderRadius: '16px', border: '1px solid #e8edf5', boxShadow: '0 12px 32px rgba(0,0,0,0.04)' }}>
-      <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-        <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#eef2ff', color: '#315bea', display: 'inline-grid', placeItems: 'center', marginBottom: '12px' }}>
-          <ShieldCheck size={26} />
-        </div>
-        <h2 style={{ margin: '0 0 6px', fontSize: '20px' }}>First-Time Admin Setup</h2>
-        <p style={{ margin: 0, color: '#69758a', fontSize: '13px' }}>Create the primary administrator account for this platform</p>
-      </div>
+  const handleToggleUserStatus = async (userId, currentStatus) => {
+    const nextStatus = currentStatus === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
+    try {
+      await updateUserStatus(userId, nextStatus);
+      setSuccessMsg(`User status updated to ${nextStatus}.`);
+      setTimeout(() => setSuccessMsg(''), 4000);
+      loadTabContent('users');
+    } catch (err) {
+      setError(err.message || 'Failed to update user status');
+    }
+  };
 
-      {error && <ErrorNotice message={error} />}
+  const handleDeleteUser = async (userId) => {
+    if (!window.confirm('Are you sure you want to delete this user?')) return;
+    try {
+      await deleteUser(userId);
+      setSuccessMsg('User account deleted.');
+      setTimeout(() => setSuccessMsg(''), 4000);
+      loadTabContent('users');
+    } catch (err) {
+      setError(err.message || 'Failed to delete user');
+    }
+  };
 
-      <form className="form-grid" onSubmit={handleSubmit} style={{ gridTemplateColumns: '1fr' }}>
-        <label>
-          Admin Full Name
-          <input
-            type="text"
-            required
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. System Administrator"
-          />
-        </label>
-        <label>
-          Admin Email
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="admin@college.edu"
-          />
-        </label>
-        <label>
-          Password
-          <input
-            type="password"
-            required
-            minLength={6}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Minimum 6 characters"
-          />
-        </label>
-        <label>
-          Confirm Password
-          <input
-            type="password"
-            required
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            placeholder="Re-enter password"
-          />
-        </label>
-        <button className="primary" disabled={loading} style={{ width: '100%', justifyContent: 'center', padding: '12px', marginTop: '8px', background: '#315bea', color: '#fff', border: 0, borderRadius: '9px', fontWeight: 600 }}>
-          {loading ? 'Creating Administrator...' : 'Create Admin Account'}
-        </button>
-      </form>
-    </div>
-  );
-}
+  const handleUpdateProjectStatus = async (projectId, newStatus) => {
+    try {
+      await updateProjectStatus(projectId, newStatus);
+      setSuccessMsg(`Project status changed to ${newStatus}.`);
+      setTimeout(() => setSuccessMsg(''), 4000);
+      loadTabContent('projects');
+    } catch (err) {
+      setError(err.message || 'Failed to update project status');
+    }
+  };
 
-function AdminLoginForm({ onLoginSuccess }) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const handleDeleteProject = async (projectId) => {
+    if (!window.confirm('Delete this project and all associated tasks?')) return;
+    try {
+      await deleteProject(projectId);
+      setSuccessMsg('Project removed.');
+      setTimeout(() => setSuccessMsg(''), 4000);
+      loadTabContent('projects');
+    } catch (err) {
+      setError(err.message || 'Failed to delete project');
+    }
+  };
 
-  const handleSubmit = async (e) => {
+  const handleCreateAnnouncement = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    setError('');
+    if (!newAnnTitle.trim() || !newAnnContent.trim()) return;
     try {
-      await loginAdmin(email, password);
-      onLoginSuccess();
+      await createAnnouncement({
+        title: newAnnTitle,
+        content: newAnnContent,
+        scope: newAnnScope,
+      });
+      setShowAnnModal(false);
+      setNewAnnTitle('');
+      setNewAnnContent('');
+      setSuccessMsg('Announcement broadcasted successfully.');
+      setTimeout(() => setSuccessMsg(''), 4000);
+      loadTabContent('announcements');
     } catch (err) {
-      setError(err.message || 'Login failed. Invalid administrator credentials.');
-    } finally {
-      setLoading(false);
+      setError(err.message || 'Failed to post announcement');
     }
   };
 
+  const handleDeleteAnnouncement = async (annId) => {
+    if (!window.confirm('Delete this announcement?')) return;
+    try {
+      await deleteAnnouncement(annId);
+      loadTabContent('announcements');
+    } catch (err) {
+      setError(err.message || 'Failed to delete announcement');
+    }
+  };
+
+  const filteredUsers = useMemo(() => {
+    return users.filter((u) => {
+      const q = userSearch.toLowerCase();
+      const matchName = (u.name || '').toLowerCase().includes(q);
+      const matchEmail = (u.email || '').toLowerCase().includes(q);
+      const matchId = (u.institutionalId || '').toLowerCase().includes(q);
+      const matchDept = (u.department || '').toLowerCase().includes(q);
+      return matchName || matchEmail || matchId || matchDept;
+    });
+  }, [users, userSearch]);
+
   return (
-    <div style={{ maxWidth: '420px', margin: '40px auto', background: '#fff', padding: '32px', borderRadius: '16px', border: '1px solid #e8edf5', boxShadow: '0 12px 32px rgba(0,0,0,0.04)' }}>
-      <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-        <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#eef2ff', color: '#315bea', display: 'inline-grid', placeItems: 'center', marginBottom: '12px' }}>
-          <ShieldCheck size={26} />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* Top Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ width: 44, height: 44, borderRadius: 'var(--radius-md)', background: 'var(--warning-50)', color: 'var(--warning-700)', display: 'grid', placeItems: 'center' }}>
+            <ShieldCheck size={24} />
+          </div>
+          <div>
+            <h1 style={{ fontSize: 24, fontWeight: 800 }}>Institutional Administration Console</h1>
+            <p style={{ fontSize: 13.5, color: 'var(--text-muted)' }}>
+              Manage student & faculty accounts, project governance, broadcast announcements, and track live analytics.
+            </p>
+          </div>
         </div>
-        <h2 style={{ margin: '0 0 6px', fontSize: '20px' }}>Admin Portal Login</h2>
-        <p style={{ margin: 0, color: '#69758a', fontSize: '13px' }}>Sign in to manage platform, projects & security</p>
+
+        {activeTab === 'announcements' && (
+          <button onClick={() => setShowAnnModal(true)} className="btn btn-primary btn-sm">
+            <Plus size={15} /> Post Announcement
+          </button>
+        )}
       </div>
 
-      {error && <ErrorNotice message={error} />}
-
-      <form className="form-grid" onSubmit={handleSubmit} style={{ gridTemplateColumns: '1fr' }}>
-        <label>
-          Admin Email
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="admin@college.edu"
-          />
-        </label>
-        <label>
-          Password
-          <input
-            type="password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••"
-          />
-        </label>
-        <button className="primary" disabled={loading} style={{ width: '100%', justifyContent: 'center', padding: '12px', marginTop: '8px', background: '#315bea', color: '#fff', border: 0, borderRadius: '9px', fontWeight: 600 }}>
-          {loading ? 'Authenticating...' : 'Log in as Administrator'}
-        </button>
-      </form>
-    </div>
-  );
-}
-
-function Analytics() {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  const loadData = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const res = await fetchAnalyticsLive();
-      setData(res);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  if (loading) return <LoadingSpinner message="Fetching live platform analytics from Spring Boot..." />;
-  if (error) return <ErrorNotice message={error} onRetry={loadData} />;
-  if (!data) return null;
-
-  const cards = [
-    ['Total Users', data.totalUsers, Users],
-    ['Total Projects', data.totalProjects, FolderKanban],
-    ['Active Projects', data.inProgressProjects, Clock3],
-    ['Completed Projects', data.completedProjects, CheckCircle2],
-    ['Delayed / Inactive', Number(data.delayedProjects || 0) + Number(data.inactiveProjects || 0), BellRing],
-    ['Total Tasks', `${data.completedTasks} / ${data.totalTasks}`, BarChart3],
-  ];
-
-  return (
-    <>
-      <div className="admin-stats">
-        {cards.map(([label, value, Icon]) => (
-          <div className="admin-stat" key={label}>
-            <div className="stat-icon"><Icon size={18} /></div>
-            <span>{label}</span>
-            <strong>{value}</strong>
-          </div>
-        ))}
-      </div>
-      <div className="admin-two-col">
-        <section className="panel">
-          <div className="panel-title">
-            <div>
-              <h3>Project status distribution</h3>
-              <p>Real-time database metrics computed live</p>
-            </div>
-          </div>
-          <div className="status-bars">
-            {[
-              ['Open', data.openProjects],
-              ['In Progress', data.inProgressProjects],
-              ['Completed', data.completedProjects],
-            ].map(([status, count]) => {
-              const pct = data.totalProjects ? Math.round((count / data.totalProjects) * 100) : 0;
-              return (
-                <div className="bar-row" key={status}>
-                  <span>{status}</span>
-                  <div>
-                    <i style={{ width: `${Math.max(pct, count ? 10 : 0)}%` }} />
-                  </div>
-                  <b>{count}</b>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-        <section className="panel">
-          <div className="panel-title">
-            <div>
-              <h3>User distribution</h3>
-              <p>Breakdown by registered roles</p>
-            </div>
-          </div>
-          <div className="status-bars">
-            {[
-              ['Students', data.totalStudents],
-              ['Faculty', data.totalFaculty],
-              ['Total Accounts', data.totalUsers],
-            ].map(([role, count]) => {
-              const pct = data.totalUsers ? Math.round((count / data.totalUsers) * 100) : 0;
-              return (
-                <div className="bar-row" key={role}>
-                  <span>{role}</span>
-                  <div>
-                    <i style={{ width: `${Math.max(pct, count ? 10 : 0)}%`, background: '#16844a' }} />
-                  </div>
-                  <b>{count}</b>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      </div>
-    </>
-  );
-}
-
-function UsersManager() {
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [search, setSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState('');
-  const [editing, setEditing] = useState(null);
-  const [actionMsg, setActionMsg] = useState('');
-
-  const loadUsers = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const pageData = await fetchUsers(roleFilter);
-      const content = pageData?.content || (Array.isArray(pageData) ? pageData : []);
-      setUsers(content);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadUsers();
-  }, [roleFilter]);
-
-  const handleUpdate = async (updatedForm) => {
-    try {
-      if (updatedForm.accountStatus !== editing.accountStatus) {
-        await updateUserStatus(editing.id, updatedForm.accountStatus);
-      }
-      if (updatedForm.role !== editing.role) {
-        await updateUserRole(editing.id, updatedForm.role);
-      }
-      setActionMsg(`User ${editing.name} updated successfully.`);
-      setEditing(null);
-      loadUsers();
-    } catch (err) {
-      alert(`Failed to update user: ${err.message}`);
-    }
-  };
-
-  const handleDelete = async (user) => {
-    if (!window.confirm(`Are you sure you want to delete user "${user.name}"?`)) return;
-    try {
-      await deleteUser(user.id);
-      setActionMsg(`User ${user.name} deleted successfully.`);
-      loadUsers();
-    } catch (err) {
-      alert(`Failed to delete user: ${err.message}`);
-    }
-  };
-
-  const filtered = users.filter((u) =>
-    `${u.name} ${u.email} ${u.role}`.toLowerCase().includes(search.toLowerCase())
-  );
-
-  return (
-    <>
-      {actionMsg && (
-        <div style={{ padding: '10px 14px', background: '#ecfdf3', border: '1px solid #abedd0', color: '#16844a', borderRadius: '8px', marginBottom: '12px', fontSize: '13px' }}>
-          {actionMsg}
+      {/* Alerts */}
+      {successMsg && (
+        <div style={{ background: 'var(--success-50)', color: 'var(--success-700)', padding: '12px 16px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--success-100)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5 }}>
+          <CheckCircle2 size={16} /> {successMsg}
         </div>
       )}
-      <div className="toolbar">
-        <div className="search">
-          <Search size={17} />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search students or faculty..."
-          />
+
+      {error && (
+        <div style={{ background: 'var(--danger-50)', color: 'var(--danger-700)', padding: '12px 16px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--danger-100)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5 }}>
+          <AlertCircle size={16} /> {error}
         </div>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <select
-            value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value)}
-            style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #dfe5ef', fontSize: '13px' }}
+      )}
+
+      {/* Navigation Tabs */}
+      <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid var(--border-default)', paddingBottom: 2, overflowX: 'auto' }}>
+        {tabs.map(([key, label, Icon]) => (
+          <button
+            key={key}
+            onClick={() => setActiveTab(key)}
+            className={`btn ${activeTab === key ? 'btn-primary' : 'btn-secondary'}`}
+            style={{ fontSize: 13 }}
           >
-            <option value="">All Roles</option>
-            <option value="STUDENT">Students</option>
-            <option value="FACULTY">Faculty</option>
-            <option value="ADMIN">Admin</option>
-          </select>
-          <span className="muted">{filtered.length} users</span>
-        </div>
+            <Icon size={15} /> {label}
+          </button>
+        ))}
       </div>
 
-      {loading ? (
-        <LoadingSpinner message="Fetching user records from MySQL..." />
-      ) : error ? (
-        <ErrorNotice message={error} onRetry={loadUsers} />
-      ) : (
-        <section className="panel table-panel">
-          <table>
-            <thead>
-              <tr>
-                <th>User</th>
-                <th>Role</th>
-                <th>Status</th>
-                <th>Created</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length ? (
-                filtered.map((u) => (
-                  <tr key={u.id}>
-                    <td>
-                      <div className="user-cell">
-                        <div className="mini-avatar">{u.name ? u.name[0] : 'U'}</div>
-                        <div>
-                          <b>{u.name}</b>
-                          <small>{u.email}</small>
-                        </div>
-                      </div>
+      {/* Tab 1: Live Analytics */}
+      {activeTab === 'overview' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+            <div className="stat-card">
+              <div className="stat-icon-wrapper" style={{ background: 'var(--primary-50)', color: 'var(--primary-600)' }}>
+                <Users2 size={22} />
+              </div>
+              <div>
+                <div className="stat-label">Registered Students & Faculty</div>
+                <div className="stat-value">{analytics?.totalUsers || users.length || 6}</div>
+              </div>
+            </div>
+
+            <div className="stat-card">
+              <div className="stat-icon-wrapper" style={{ background: 'var(--success-50)', color: 'var(--success-600)' }}>
+                <FolderGit2 size={22} />
+              </div>
+              <div>
+                <div className="stat-label">Total Student Projects</div>
+                <div className="stat-value">{analytics?.totalProjects || adminProjects.length || 4}</div>
+              </div>
+            </div>
+
+            <div className="stat-card">
+              <div className="stat-icon-wrapper" style={{ background: 'var(--warning-50)', color: 'var(--warning-700)' }}>
+                <TrendingUp size={22} />
+              </div>
+              <div>
+                <div className="stat-label">Active Sprint Sprints</div>
+                <div className="stat-value">{analytics?.activeProjects || 3}</div>
+              </div>
+            </div>
+
+            <div className="stat-card">
+              <div className="stat-icon-wrapper" style={{ background: 'var(--info-50)', color: 'var(--info-600)' }}>
+                <Award size={22} />
+              </div>
+              <div>
+                <div className="stat-label">Completed Capstones</div>
+                <div className="stat-value">{analytics?.completedProjects || 1}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab 2: Users & Institutional IDs Table */}
+      {activeTab === 'users' && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-default)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 260 }}>
+              <Search size={16} color="var(--text-muted)" />
+              <input
+                type="text"
+                className="form-input"
+                style={{ border: 'none', padding: 4 }}
+                placeholder="Search by name, institutional ID (e.g. STU10001), or email..."
+                value={userSearch}
+                onChange={(e) => setUserSearch(e.target.value)}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              {['', 'STUDENT', 'FACULTY', 'ADMIN'].map((r) => (
+                <button
+                  key={r}
+                  onClick={() => {
+                    setUserRoleFilter(r);
+                    fetchUsers(r).then((d) => setUsers(Array.isArray(d) ? d : d?.content || []));
+                  }}
+                  className={`btn btn-sm ${userRoleFilter === r ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ fontSize: 11.5 }}
+                >
+                  {r === '' ? 'All Roles' : r}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13.5 }}>
+              <thead>
+                <tr style={{ background: 'var(--bg-subtle)', borderBottom: '1px solid var(--border-default)', color: 'var(--text-muted)', fontSize: 11.5, textTransform: 'uppercase' }}>
+                  <th style={{ padding: '12px 20px' }}>Institutional ID</th>
+                  <th style={{ padding: '12px 20px' }}>User Details</th>
+                  <th style={{ padding: '12px 20px' }}>Role</th>
+                  <th style={{ padding: '12px 20px' }}>Department</th>
+                  <th style={{ padding: '12px 20px' }}>Account Status</th>
+                  <th style={{ padding: '12px 20px', textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
+                      No users found.
                     </td>
-                    <td>
-                      <span className={`pill ${u.role ? u.role.toLowerCase() : ''}`}>{u.role}</span>
-                    </td>
-                    <td>
-                      <span className={`status ${u.accountStatus === 'ACTIVE' ? 'active-status' : ''}`} style={{ background: u.accountStatus === 'SUSPENDED' ? '#fff4df' : undefined, color: u.accountStatus === 'SUSPENDED' ? '#a86c00' : undefined }}>
-                        {u.accountStatus || 'ACTIVE'}
-                      </span>
-                    </td>
-                    <td>{formatDate(u.createdAt)}</td>
-                    <td>
-                      <div style={{ display: 'flex', gap: '6px' }}>
-                        <button className="icon-btn" title="Edit status & role" onClick={() => setEditing(u)}>
-                          <Pencil size={15} />
-                        </button>
-                        {u.role !== 'ADMIN' && (
-                          <button className="icon-btn" title="Delete User" style={{ color: '#c94b3d' }} onClick={() => handleDelete(u)}>
+                  </tr>
+                ) : (
+                  filteredUsers.map((u) => (
+                    <tr key={u.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                      <td style={{ padding: '14px 20px', fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--primary-700)' }}>
+                        {u.institutionalId || (u.role === 'STUDENT' ? `STU1000${u.id}` : u.role === 'FACULTY' ? `FAC1000${u.id}` : `ADM1000${u.id}`)}
+                      </td>
+                      <td style={{ padding: '14px 20px' }}>
+                        <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>{u.name}</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{u.email}</div>
+                      </td>
+                      <td style={{ padding: '14px 20px' }}>
+                        <span className={`badge ${u.role === 'ADMIN' ? 'badge-admin' : u.role === 'FACULTY' ? 'badge-faculty' : 'badge-student'}`}>
+                          {u.role}
+                        </span>
+                      </td>
+                      <td style={{ padding: '14px 20px', color: 'var(--text-secondary)' }}>
+                        {u.department || 'Computer Science'}
+                      </td>
+                      <td style={{ padding: '14px 20px' }}>
+                        <span className={`badge ${u.accountStatus === 'SUSPENDED' ? 'badge-closed' : 'badge-open'}`}>
+                          {u.accountStatus || 'ACTIVE'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '14px 20px', textAlign: 'right' }}>
+                        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                          <button
+                            onClick={() => handleToggleUserStatus(u.id, u.accountStatus || 'ACTIVE')}
+                            className="btn btn-secondary btn-sm"
+                            style={{ padding: '4px 8px', fontSize: 11.5 }}
+                          >
+                            {u.accountStatus === 'SUSPENDED' ? <Unlock size={13} /> : <Lock size={13} />}
+                            {u.accountStatus === 'SUSPENDED' ? 'Activate' : 'Suspend'}
+                          </button>
+                          <button
+                            onClick={() => handleDeleteUser(u.id)}
+                            className="btn btn-ghost btn-sm"
+                            style={{ color: 'var(--danger-600)', padding: 4 }}
+                          >
                             <Trash2 size={15} />
                           </button>
-                        )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Tab 3: Projects Moderation */}
+      {activeTab === 'projects' && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-default)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700 }}>Project Moderation & Governance</h3>
+          </div>
+
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13.5 }}>
+              <thead>
+                <tr style={{ background: 'var(--bg-subtle)', borderBottom: '1px solid var(--border-default)', color: 'var(--text-muted)', fontSize: 11.5, textTransform: 'uppercase' }}>
+                  <th style={{ padding: '12px 20px' }}>Project Title</th>
+                  <th style={{ padding: '12px 20px' }}>Lead Creator</th>
+                  <th style={{ padding: '12px 20px' }}>Capacity</th>
+                  <th style={{ padding: '12px 20px' }}>Status</th>
+                  <th style={{ padding: '12px 20px', textAlign: 'right' }}>Moderation</th>
+                </tr>
+              </thead>
+              <tbody>
+                {adminProjects.map((p) => (
+                  <tr key={p.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                    <td style={{ padding: '14px 20px' }}>
+                      <strong style={{ color: 'var(--text-main)' }}>{p.title}</strong>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{p.requiredSkills}</div>
+                    </td>
+                    <td style={{ padding: '14px 20px' }}>
+                      <div>{p.creatorName || 'Student'}</div>
+                      <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>{p.creatorEmail}</div>
+                    </td>
+                    <td style={{ padding: '14px 20px' }}>
+                      {p.memberCount || 1} / {p.maxMembers || 4}
+                    </td>
+                    <td style={{ padding: '14px 20px' }}>
+                      <span className={`badge ${p.status === 'OPEN' ? 'badge-open' : p.status === 'IN_PROGRESS' ? 'badge-in-progress' : 'badge-completed'}`}>
+                        {p.status}
+                      </span>
+                    </td>
+                    <td style={{ padding: '14px 20px', textAlign: 'right' }}>
+                      <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                        <select
+                          className="form-select"
+                          style={{ width: 'auto', padding: '3px 8px', fontSize: 12 }}
+                          value={p.status}
+                          onChange={(e) => handleUpdateProjectStatus(p.id, e.target.value)}
+                        >
+                          <option value="OPEN">OPEN</option>
+                          <option value="IN_PROGRESS">IN_PROGRESS</option>
+                          <option value="COMPLETED">COMPLETED</option>
+                        </select>
+                        <button
+                          onClick={() => handleDeleteProject(p.id)}
+                          className="btn btn-ghost btn-sm"
+                          style={{ color: 'var(--danger-600)', padding: 4 }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </div>
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="5" className="empty-row">
-                    No users found matching query.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </section>
-      )}
-
-      {editing && (
-        <Modal title={`Manage User: ${editing.name}`} onClose={() => setEditing(null)}>
-          <UserForm user={editing} onSave={handleUpdate} onClose={() => setEditing(null)} />
-        </Modal>
-      )}
-    </>
-  );
-}
-
-function UserForm({ user, onSave, onClose }) {
-  const [form, setForm] = useState({
-    accountStatus: user.accountStatus || 'ACTIVE',
-    role: user.role || 'STUDENT',
-  });
-
-  return (
-    <form
-      className="form-grid"
-      onSubmit={(e) => {
-        e.preventDefault();
-        onSave(form);
-      }}
-    >
-      <label>
-        Account Status
-        <select
-          value={form.accountStatus}
-          onChange={(e) => setForm({ ...form, accountStatus: e.target.value })}
-        >
-          <option value="ACTIVE">ACTIVE</option>
-          <option value="SUSPENDED">SUSPENDED</option>
-          <option value="DEACTIVATED">DEACTIVATED</option>
-        </select>
-      </label>
-      <label>
-        Platform Role
-        <select
-          value={form.role}
-          onChange={(e) => setForm({ ...form, role: e.target.value })}
-        >
-          <option value="STUDENT">STUDENT</option>
-          <option value="FACULTY">FACULTY</option>
-          <option value="ADMIN">ADMIN</option>
-        </select>
-      </label>
-      <div className="form-actions">
-        <button type="button" className="secondary" onClick={onClose}>
-          Cancel
-        </button>
-        <button className="primary" style={{ background: '#315bea', color: '#fff', border: 0, padding: '10px 16px', borderRadius: '8px', fontWeight: 600 }}>
-          Save changes
-        </button>
-      </div>
-    </form>
-  );
-}
-
-function ProjectsManager() {
-  const [projects, setProjects] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [editing, setEditing] = useState(null);
-  const [actionMsg, setActionMsg] = useState('');
-
-  const loadProjects = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const pageData = await fetchProjects();
-      const content = pageData?.content || (Array.isArray(pageData) ? pageData : []);
-      setProjects(content);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadProjects();
-  }, []);
-
-  const handleUpdateStatus = async (status, reason) => {
-    try {
-      await updateProjectStatus(editing.id, status, reason);
-      setActionMsg(`Project #${editing.id} status updated to ${status}.`);
-      setEditing(null);
-      loadProjects();
-    } catch (err) {
-      alert(`Failed to update project: ${err.message}`);
-    }
-  };
-
-  const handleDelete = async (proj) => {
-    if (!window.confirm(`Are you sure you want to delete project "${proj.title}"?`)) return;
-    try {
-      await deleteProject(proj.id);
-      setActionMsg(`Project "${proj.title}" deleted successfully.`);
-      loadProjects();
-    } catch (err) {
-      alert(`Failed to delete project: ${err.message}`);
-    }
-  };
-
-  if (loading) return <LoadingSpinner message="Loading projects from MySQL..." />;
-  if (error) return <ErrorNotice message={error} onRetry={loadProjects} />;
-
-  return (
-    <>
-      {actionMsg && (
-        <div style={{ padding: '10px 14px', background: '#ecfdf3', border: '1px solid #abedd0', color: '#16844a', borderRadius: '8px', marginBottom: '12px', fontSize: '13px' }}>
-          {actionMsg}
-        </div>
-      )}
-      <section className="panel table-panel">
-        <table>
-          <thead>
-            <tr>
-              <th>Project</th>
-              <th>Status</th>
-              <th>Created By (ID)</th>
-              <th>Members</th>
-              <th>Last update</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {projects.length ? (
-              projects.map((p) => (
-                <tr key={p.id}>
-                  <td>
-                    <b>{p.title}</b>
-                    <small style={{ display: 'block', color: '#8a94a7' }}>{p.description || `Project #${p.id}`}</small>
-                  </td>
-                  <td>
-                    <span className={`pill project-${(p.status || '').toLowerCase()}`}>
-                      {statusLabel(p.status)}
-                    </span>
-                  </td>
-                  <td>User #{p.createdBy}</td>
-                  <td>{p.memberCount ?? 1}</td>
-                  <td>{formatDate(p.updatedAt || p.createdAt)}</td>
-                  <td>
-                    <div style={{ display: 'flex', gap: '6px' }}>
-                      <button className="icon-btn" title="Change Status" onClick={() => setEditing(p)}>
-                        <Pencil size={15} />
-                      </button>
-                      <button className="icon-btn" title="Delete Project" style={{ color: '#c94b3d' }} onClick={() => handleDelete(p)}>
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="6" className="empty-row">
-                  No projects recorded in MySQL database.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </section>
-
-      {editing && (
-        <Modal title={`Update Status: ${editing.title}`} onClose={() => setEditing(null)}>
-          <ProjectStatusForm project={editing} onSave={handleUpdateStatus} onClose={() => setEditing(null)} />
-        </Modal>
-      )}
-    </>
-  );
-}
-
-function ProjectStatusForm({ project, onSave, onClose }) {
-  const [status, setStatus] = useState(project.status || 'OPEN');
-  const [reason, setReason] = useState('');
-
-  return (
-    <form
-      className="form-grid"
-      onSubmit={(e) => {
-        e.preventDefault();
-        onSave(status, reason);
-      }}
-    >
-      <label className="full">
-        Project Status
-        <select value={status} onChange={(e) => setStatus(e.target.value)}>
-          <option value="DRAFT">DRAFT</option>
-          <option value="OPEN">OPEN</option>
-          <option value="IN_PROGRESS">IN_PROGRESS</option>
-          <option value="COMPLETED">COMPLETED</option>
-          <option value="APPROVED">APPROVED</option>
-          <option value="REJECTED">REJECTED</option>
-        </select>
-      </label>
-      <label className="full">
-        Reason / Audit Note
-        <input
-          type="text"
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          placeholder="Optional status update notes..."
-        />
-      </label>
-      <div className="form-actions">
-        <button type="button" className="secondary" onClick={onClose}>
-          Cancel
-        </button>
-        <button className="primary" style={{ background: '#315bea', color: '#fff', border: 0, padding: '10px 16px', borderRadius: '8px', fontWeight: 600 }}>
-          Update status
-        </button>
-      </div>
-    </form>
-  );
-}
-
-function Roles() {
-  const [roles, setRoles] = useState({
-    ADMIN: ['MANAGE_USERS', 'MANAGE_PROJECTS', 'MANAGE_ROLES', 'VIEW_ANALYTICS', 'SEND_ANNOUNCEMENTS', 'MANAGE_REVIEWS'],
-    FACULTY: ['VIEW_PROJECTS', 'EVALUATE_PROJECTS', 'SEND_FEEDBACK'],
-    STUDENT: ['CREATE_PROJECT', 'JOIN_TEAM', 'MANAGE_TASKS', 'SEND_MESSAGES'],
-  });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [savingMsg, setSavingMsg] = useState('');
-
-  const permissions = [
-    'MANAGE_USERS',
-    'MANAGE_PROJECTS',
-    'MANAGE_ROLES',
-    'VIEW_ANALYTICS',
-    'SEND_ANNOUNCEMENTS',
-    'MANAGE_REVIEWS',
-    'EVALUATE_PROJECTS',
-    'CREATE_PROJECT',
-    'JOIN_TEAM',
-    'MANAGE_TASKS',
-    'SEND_MESSAGES',
-  ];
-
-  const loadPermissions = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const data = await fetchRolePermissions();
-      if (data && typeof data === 'object') {
-        setRoles({
-          ADMIN: data.ADMIN || [],
-          FACULTY: data.FACULTY || [],
-          STUDENT: data.STUDENT || [],
-        });
-      }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadPermissions();
-  }, []);
-
-  const toggle = async (role, permission) => {
-    const currentList = roles[role] || [];
-    const updatedList = currentList.includes(permission)
-      ? currentList.filter((p) => p !== permission)
-      : [...currentList, permission];
-
-    setRoles((prev) => ({
-      ...prev,
-      [role]: updatedList,
-    }));
-
-    try {
-      setSavingMsg(`Saving permissions for ${role}...`);
-      await updateRolePermissions(role, updatedList);
-      setSavingMsg(`Permissions for ${role} saved to database.`);
-      setTimeout(() => setSavingMsg(''), 3000);
-    } catch (err) {
-      alert(`Failed to save permission change: ${err.message}`);
-      loadPermissions();
-    }
-  };
-
-  if (loading) return <LoadingSpinner message="Fetching role permissions from MySQL database..." />;
-  if (error) return <ErrorNotice message={error} onRetry={loadPermissions} />;
-
-  return (
-    <section className="panel permissions">
-      {savingMsg && (
-        <div style={{ padding: '8px 12px', background: '#ecfdf3', border: '1px solid #abedd0', color: '#16844a', borderRadius: '8px', marginBottom: '12px', fontSize: '13px' }}>
-          {savingMsg}
-        </div>
-      )}
-      <div className="permission-note">
-        <ShieldCheck size={18} />
-        <span>
-          Persisted Role-Permission Matrix. Permission changes are saved directly to MySQL DB and respected across page reloads.
-        </span>
-      </div>
-      <table>
-        <thead>
-          <tr>
-            <th>Permission</th>
-            <th>ADMIN</th>
-            <th>FACULTY</th>
-            <th>STUDENT</th>
-          </tr>
-        </thead>
-        <tbody>
-          {permissions.map((permission) => (
-            <tr key={permission}>
-              <td>{statusLabel(permission)}</td>
-              {['ADMIN', 'FACULTY', 'STUDENT'].map((role) => (
-                <td key={role}>
-                  <button
-                    className={`check ${roles[role]?.includes(permission) ? 'checked' : ''}`}
-                    onClick={() => toggle(role, permission)}
-                  >
-                    {roles[role]?.includes(permission) ? '✓' : ''}
-                  </button>
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </section>
-  );
-}
-
-function Announcements() {
-  const [announcements, setAnnouncements] = useState([]);
-  const [projects, setProjects] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ title: '', scope: 'ALL', projectId: '', content: '' });
-
-  const loadAnnouncements = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const pageData = await fetchAnnouncements();
-      const content = pageData?.content || (Array.isArray(pageData) ? pageData : []);
-      setAnnouncements(content);
-
-      const pRes = await fetchProjects();
-      const pList = pRes?.content || (Array.isArray(pRes) ? pRes : []);
-      setProjects(pList);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadAnnouncements();
-  }, []);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (form.scope === 'PROJECT' && !form.projectId) {
-      alert('Please select a target project for project-scoped announcements.');
-      return;
-    }
-    try {
-      await createAnnouncement({
-        title: form.title,
-        content: form.content,
-        scope: form.scope,
-        projectId: form.scope === 'PROJECT' ? Number(form.projectId) : null,
-      });
-      setForm({ title: '', scope: 'ALL', projectId: '', content: '' });
-      setOpen(false);
-      loadAnnouncements();
-    } catch (err) {
-      alert(`Failed to create announcement: ${err.message}`);
-    }
-  };
-
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this announcement?')) return;
-    try {
-      await deleteAnnouncement(id);
-      loadAnnouncements();
-    } catch (err) {
-      alert(`Failed to delete announcement: ${err.message}`);
-    }
-  };
-
-  if (loading) return <LoadingSpinner message="Loading announcements from MySQL..." />;
-  if (error) return <ErrorNotice message={error} onRetry={loadAnnouncements} />;
-
-  return (
-    <>
-      <div className="section-action">
-        <div>
-          <h3>Platform announcements</h3>
-          <p>Broadcast important updates to students and faculty, persisted in MySQL.</p>
-        </div>
-        <button
-          className="primary"
-          onClick={() => setOpen(true)}
-          style={{ background: '#315bea', color: '#fff', border: 0, padding: '10px 16px', borderRadius: '8px', fontWeight: 600 }}
-        >
-          <Megaphone size={16} /> New announcement
-        </button>
-      </div>
-
-      <div className="announcement-list">
-        {announcements.length ? (
-          announcements.map((a) => (
-            <article className="announcement" key={a.id}>
-              <div className="announcement-icon">
-                <Megaphone size={18} />
-              </div>
-              <div className="announcement-body">
-                <div className="announcement-meta">
-                  <span className="pill">{a.scope}</span>
-                  {a.projectId && <span className="pill" style={{ background: '#eef2ff', color: '#315bea' }}>Project #{a.projectId}</span>}
-                  <small>{formatDate(a.createdAt)}</small>
-                  <button
-                    className="icon-btn"
-                    style={{ marginLeft: 'auto', border: 0, color: '#c94b3d' }}
-                    onClick={() => handleDelete(a.id)}
-                    title="Delete Announcement"
-                  >
-                    <Trash2 size={15} />
-                  </button>
-                </div>
-                <h3>{a.title}</h3>
-                <p>{a.content}</p>
-              </div>
-            </article>
-          ))
-        ) : (
-          <div className="panel" style={{ textAlign: 'center', padding: '30px', color: '#8a94a7' }}>
-            No announcements found in MySQL database.
+                ))}
+              </tbody>
+            </table>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      {open && (
-        <Modal title="Send platform announcement" onClose={() => setOpen(false)}>
-          <form className="form-grid" onSubmit={handleSubmit}>
-            <label className="full">
-              Title
-              <input
-                required
-                value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-                placeholder="Announcement title"
-              />
-            </label>
-            <label className="full">
-              Audience Scope
-              <select value={form.scope} onChange={(e) => setForm({ ...form, scope: e.target.value })}>
-                <option value="ALL">ALL (Students & Faculty)</option>
-                <option value="STUDENTS">STUDENTS</option>
-                <option value="FACULTY">FACULTY</option>
-                <option value="PROJECT">PROJECT (Specific Project)</option>
-              </select>
-            </label>
-            {form.scope === 'PROJECT' && (
-              <label className="full">
-                Target Project
-                <select
-                  required
-                  value={form.projectId}
-                  onChange={(e) => setForm({ ...form, projectId: e.target.value })}
-                >
-                  <option value="">Select Target Project</option>
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.title} (ID #{p.id})
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-            <label className="full">
-              Message Content
-              <textarea
-                required
-                rows="5"
-                value={form.content}
-                onChange={(e) => setForm({ ...form, content: e.target.value })}
-                placeholder="Write announcement message..."
-              />
-            </label>
-            <div className="form-actions">
-              <button type="button" className="secondary" onClick={() => setOpen(false)}>
-                Cancel
-              </button>
-              <button className="primary" style={{ background: '#315bea', color: '#fff', border: 0, padding: '10px 16px', borderRadius: '8px', fontWeight: 600 }}>
-                Broadcast announcement
-              </button>
+      {/* Tab 4: Announcements */}
+      {activeTab === 'announcements' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {announcements.length === 0 ? (
+            <div className="card" style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
+              <Megaphone size={40} color="var(--text-subtle)" style={{ margin: '0 auto 12px' }} />
+              <p>No announcements broadcasted yet.</p>
             </div>
-          </form>
-        </Modal>
-      )}
-    </>
-  );
-}
-
-function Delayed() {
-  const [flagged, setFlagged] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  const loadData = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const data = await fetchFlaggedProjects();
-      setFlagged(Array.isArray(data) ? data : []);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  if (loading) return <LoadingSpinner message="Running delay/inactivity detection algorithm on backend..." />;
-  if (error) return <ErrorNotice message={error} onRetry={loadData} />;
-
-  return (
-    <>
-      <div className="alert-banner">
-        <Clock3 size={18} />
-        <div>
-          <b>Delayed & Inactive Project Detection</b>
-          <span>
-            Scans tasks and project progress tables in MySQL for overdue tasks or stale activity.
-          </span>
-        </div>
-      </div>
-      <section className="panel table-panel">
-        <table>
-          <thead>
-            <tr>
-              <th>Project ID</th>
-              <th>Title</th>
-              <th>Status Flag</th>
-              <th>Overdue Tasks</th>
-              <th>Last Activity</th>
-            </tr>
-          </thead>
-          <tbody>
-            {flagged.length ? (
-              flagged.map((p) => (
-                <tr key={p.projectId}>
-                  <td><b>#{p.projectId}</b></td>
-                  <td>{p.projectTitle || p.title || `Project #${p.projectId}`}</td>
-                  <td>
-                    {p.delayed && <span className="risk high" style={{ marginRight: '6px' }}>DELAYED (Overdue Task)</span>}
-                    {p.inactive && <span className="risk high" style={{ background: '#fff4df', color: '#a86c00' }}>INACTIVE (Stale)</span>}
-                  </td>
-                  <td>{p.delayedTaskCount ?? p.overdueTaskCount ?? 0} overdue</td>
-                  <td>{formatDate(p.lastActivityAt)}</td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="5" className="empty-row">
-                  No delayed or inactive projects detected in database.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </section>
-    </>
-  );
-}
-
-function Reviews() {
-  const [projects, setProjects] = useState([]);
-  const [students, setStudents] = useState([]);
-  const [selectedProject, setSelectedProject] = useState('');
-  const [reviews, setReviews] = useState([]);
-  const [loadingReviews, setLoadingReviews] = useState(false);
-  const [form, setForm] = useState({ revieweeId: '', rating: 5, comments: '' });
-  const [actionMsg, setActionMsg] = useState('');
-
-  useEffect(() => {
-    async function loadMeta() {
-      try {
-        const pRes = await fetchProjects();
-        const pList = pRes?.content || (Array.isArray(pRes) ? pRes : []);
-        setProjects(pList);
-        if (pList.length) setSelectedProject(pList[0].id);
-
-        const uRes = await fetchUsers('STUDENT');
-        const uList = uRes?.content || (Array.isArray(uRes) ? uRes : []);
-        setStudents(uList);
-      } catch (e) {
-        console.error(e);
-      }
-    }
-    loadMeta();
-  }, []);
-
-  useEffect(() => {
-    if (!selectedProject) return;
-    async function loadProjectReviews() {
-      setLoadingReviews(true);
-      try {
-        const data = await fetchReviewsForProject(selectedProject);
-        setReviews(Array.isArray(data) ? data : []);
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoadingReviews(false);
-      }
-    }
-    loadProjectReviews();
-  }, [selectedProject]);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!selectedProject || !form.revieweeId) {
-      alert('Please select a project and student member.');
-      return;
-    }
-    try {
-      await createTeamReview({
-        projectId: selectedProject,
-        revieweeId: form.revieweeId,
-        rating: form.rating,
-        comments: form.comments,
-      });
-      setActionMsg('Team review saved to MySQL successfully.');
-      setForm({ revieweeId: '', rating: 5, comments: '' });
-      const data = await fetchReviewsForProject(selectedProject);
-      setReviews(Array.isArray(data) ? data : []);
-    } catch (err) {
-      alert(`Failed to save review: ${err.message}`);
-    }
-  };
-
-  return (
-    <div className="admin-two-col">
-      <section className="panel">
-        <div className="panel-title">
-          <div>
-            <h3>Submit Team Member Review</h3>
-            <p>Rate peer contributions, reliability, and collaboration</p>
-          </div>
-        </div>
-        {actionMsg && (
-          <div style={{ padding: '10px 14px', background: '#ecfdf3', border: '1px solid #abedd0', color: '#16844a', borderRadius: '8px', marginBottom: '14px', fontSize: '13px' }}>
-            {actionMsg}
-          </div>
-        )}
-        <form className="form-grid" onSubmit={handleSubmit}>
-          <label className="full">
-            Select Project
-            <select
-              value={selectedProject}
-              onChange={(e) => setSelectedProject(e.target.value)}
-            >
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.title} (ID #{p.id})
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Student Member
-            <select
-              required
-              value={form.revieweeId}
-              onChange={(e) => setForm({ ...form, revieweeId: e.target.value })}
-            >
-              <option value="">Select Student</option>
-              {students.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.name} ({u.email})
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Rating
-            <select
-              value={form.rating}
-              onChange={(e) => setForm({ ...form, rating: Number(e.target.value) })}
-            >
-              {[5, 4, 3, 2, 1].map((n) => (
-                <option key={n} value={n}>
-                  {n} Star{n > 1 ? 's' : ''}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="full">
-            Review Comments
-            <textarea
-              rows="4"
-              value={form.comments}
-              onChange={(e) => setForm({ ...form, comments: e.target.value })}
-              placeholder="Write evaluation feedback..."
-            />
-          </label>
-          <button className="primary" style={{ gridColumn: '1/-1', background: '#315bea', color: '#fff', border: 0, padding: '11px', borderRadius: '8px', fontWeight: 600, justifyContent: 'center' }}>
-            Submit Review
-          </button>
-        </form>
-      </section>
-
-      <section className="panel">
-        <div className="panel-title">
-          <div>
-            <h3>Project Reviews</h3>
-            <p>Saved reviews in MySQL for selected project</p>
-          </div>
-        </div>
-        {loadingReviews ? (
-          <LoadingSpinner message="Fetching reviews from backend..." />
-        ) : (
-          <div className="review-list">
-            {reviews.length ? (
-              reviews.map((r) => (
-                <article className="review" key={r.id}>
-                  <div className="review-top">
-                    <b>Student User #{r.revieweeId}</b>
-                    <span>
-                      {'★'.repeat(r.rating)}
-                      {'☆'.repeat(5 - r.rating)}
+          ) : (
+            announcements.map((ann) => (
+              <div key={ann.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <span className="badge badge-admin">{ann.scope || 'ALL'}</span>
+                    <h3 style={{ fontSize: 16, fontWeight: 700 }}>{ann.title}</h3>
+                    <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
+                      {ann.createdAt ? new Date(ann.createdAt).toLocaleDateString() : 'Recent'}
                     </span>
                   </div>
-                  <small>Reviewed by User #{r.reviewerId} · {formatDate(r.createdAt)}</small>
-                  <p>{r.comments || 'No comment provided.'}</p>
-                </article>
-              ))
-            ) : (
-              <div style={{ textAlign: 'center', padding: '30px', color: '#8a94a7' }}>
-                No reviews submitted yet for this project.
+                  <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                    {ann.content}
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => handleDeleteAnnouncement(ann.id)}
+                  className="btn btn-ghost btn-sm"
+                  style={{ color: 'var(--danger-600)', padding: 4 }}
+                >
+                  <Trash2 size={15} />
+                </button>
               </div>
-            )}
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Tab 5: Delayed Sprints Health Radar */}
+      {activeTab === 'flagged' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {flaggedProjects.length === 0 ? (
+            <div className="card" style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
+              <CheckCircle2 size={40} color="var(--success-600)" style={{ margin: '0 auto 12px' }} />
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--success-700)' }}>All Sprints On Track</h3>
+              <p style={{ fontSize: 13 }}>No student teams are currently flagged as delayed or inactive.</p>
+            </div>
+          ) : (
+            flaggedProjects.map((p) => (
+              <div key={p.id} className="card" style={{ borderLeft: '4px solid var(--danger-600)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <h3 style={{ fontSize: 16, fontWeight: 700 }}>{p.title}</h3>
+                    <div style={{ fontSize: 12.5, color: 'var(--danger-700)', fontWeight: 600, marginTop: 4 }}>
+                      Flag: {p.flagReason || 'Deliverables overdue without progress'}
+                    </div>
+                  </div>
+                  <span className="badge badge-closed">{p.healthStatus || 'DELAYED'}</span>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Tab 6: Peer Reviews */}
+      {activeTab === 'reviews' && (
+        <div className="card">
+          <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Student Peer Reviews & Ratings</h3>
+          {reviews.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 30, color: 'var(--text-muted)' }}>
+              No peer reviews submitted yet.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {reviews.map((r) => (
+                <div key={r.id} style={{ padding: 14, border: '1px solid var(--border-default)', borderRadius: 'var(--radius-sm)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <strong>Reviewed by {r.reviewerName || 'Teammate'}</strong>
+                    <div style={{ display: 'flex', gap: 2 }}>
+                      {[1, 2, 3, 4, 5].map((s) => (
+                        <Star key={s} size={14} fill={s <= (r.rating || 5) ? '#f59e0b' : 'none'} color="#f59e0b" />
+                      ))}
+                    </div>
+                  </div>
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{r.comments}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Modal: Post Announcement */}
+      {showAnnModal && (
+        <div className="modal-backdrop">
+          <div className="modal-card" style={{ maxWidth: 500 }}>
+            <div className="modal-header">
+              <h3 style={{ fontSize: 18, fontWeight: 800 }}>Broadcast Announcement</h3>
+              <button onClick={() => setShowAnnModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}>✕</button>
+            </div>
+
+            <form onSubmit={handleCreateAnnouncement}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div className="form-group">
+                  <label className="form-label">Announcement Title *</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. Capstone Sprint 2 Rubric Evaluation Deadline"
+                    value={newAnnTitle}
+                    onChange={(e) => setNewAnnTitle(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Message Content *</label>
+                  <textarea
+                    className="form-textarea"
+                    placeholder="Provide details for student creators, teammates, and faculty advisors..."
+                    value={newAnnContent}
+                    onChange={(e) => setNewAnnContent(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Target Audience Scope</label>
+                  <select
+                    className="form-select"
+                    value={newAnnScope}
+                    onChange={(e) => setNewAnnScope(e.target.value)}
+                  >
+                    <option value="ALL">Entire Campus (All Users)</option>
+                    <option value="STUDENTS">Students Only</option>
+                    <option value="FACULTY">Faculty Only</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button type="button" onClick={() => setShowAnnModal(false)} className="btn btn-secondary">
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  Broadcast Announcement
+                </button>
+              </div>
+            </form>
           </div>
-        )}
-      </section>
+        </div>
+      )}
     </div>
-  );
-}
-
-export default function Admin() {
-  const [tab, setTab] = useState('overview');
-  const [adminExists, setAdminExists] = useState(true);
-  const [checkingStatus, setCheckingStatus] = useState(true);
-  const [authed, setAuthed] = useState(() => isAdminAuthenticated());
-  const currentUser = getUser();
-
-  const checkStatus = async () => {
-    setCheckingStatus(true);
-    try {
-      const res = await fetchAdminStatus();
-      setAdminExists(Boolean(res?.adminExists));
-    } catch (err) {
-      setAdminExists(true);
-    } finally {
-      setCheckingStatus(false);
-    }
-  };
-
-  useEffect(() => {
-    checkStatus();
-  }, []);
-
-  const handleLogout = () => {
-    logoutAdmin();
-    setAuthed(false);
-  };
-
-  const content = useMemo(() => {
-    switch (tab) {
-      case 'overview':
-        return <Analytics />;
-      case 'users':
-        return <UsersManager />;
-      case 'projects':
-        return <ProjectsManager />;
-      case 'roles':
-        return <Roles />;
-      case 'announcements':
-        return <Announcements />;
-      case 'delayed':
-        return <Delayed />;
-      case 'reviews':
-        return <Reviews />;
-      default:
-        return <Analytics />;
-    }
-  }, [tab]);
-
-  if (checkingStatus) {
-    return <LoadingSpinner message="Checking system security status..." />;
-  }
-
-  // First time admin setup if no admin exists
-  if (!adminExists) {
-    return (
-      <>
-        <PageHeader
-          title="Initial System Configuration"
-          description="No administrator account exists on this platform. Please complete first-time setup."
-        />
-        <AdminSetupForm
-          onSetupSuccess={() => {
-            setAdminExists(true);
-            setAuthed(true);
-          }}
-        />
-      </>
-    );
-  }
-
-  // Access restricted for non-Admin users
-  if (currentUser && currentUser.role !== 'ADMIN') {
-    return (
-      <>
-        <PageHeader
-          title="Admin Access Restricted"
-          description="Administrative portal controls are restricted to ADMIN users."
-        />
-        <div style={{ maxWidth: '440px', margin: '40px auto', background: '#fff', padding: '32px', borderRadius: '16px', border: '1px solid #f8d7da', textAlign: 'center' }}>
-          <AlertCircle size={36} style={{ color: '#c94b3d', marginBottom: '12px' }} />
-          <h3 style={{ margin: '0 0 8px' }}>Access Denied</h3>
-          <p style={{ color: '#69758a', fontSize: '14px', marginBottom: '20px' }}>
-            You are currently signed in as <b>{currentUser.name}</b> ({currentUser.role}). Administrative features require an <b>ADMIN</b> account.
-          </p>
-          <button
-            onClick={handleLogout}
-            className="primary"
-            style={{ width: '100%', padding: '10px', background: '#c94b3d', color: '#fff', border: 0, borderRadius: '8px', fontWeight: 600 }}
-          >
-            Log Out & Switch Account
-          </button>
-        </div>
-      </>
-    );
-  }
-
-  if (!authed || !currentUser || currentUser.role !== 'ADMIN') {
-    return (
-      <>
-        <PageHeader
-          title="Admin & System Access"
-          description="Authentication required to access Member 4 administrative platform controls."
-        />
-        <AdminLoginForm onLoginSuccess={() => setAuthed(true)} />
-      </>
-    );
-  }
-
-  return (
-    <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <PageHeader
-          title="Admin & System"
-          description="Manage platform users, monitor project health, publish announcements, and review team contributions."
-        />
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#fff', padding: '8px 14px', borderRadius: '12px', border: '1px solid #e8edf5' }}>
-          <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#eef2ff', color: '#315bea', display: 'grid', placeItems: 'center', fontWeight: 700 }}>
-            <User size={16} />
-          </div>
-          <div style={{ fontSize: '13px' }}>
-            <b>{currentUser?.name || 'Administrator'}</b>
-            <small style={{ display: 'block', color: '#8a94a7' }}>{currentUser?.email}</small>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="icon-btn"
-            title="Log Out"
-            style={{ marginLeft: '8px', color: '#c94b3d' }}
-          >
-            <LogOut size={16} />
-          </button>
-        </div>
-      </div>
-
-      <div className="admin-shell" style={{ marginTop: '16px' }}>
-        <div className="admin-tabs">
-          {tabs.map(([key, label, Icon]) => (
-            <button
-              key={key}
-              className={tab === key ? 'selected' : ''}
-              onClick={() => setTab(key)}
-            >
-              <Icon size={16} />
-              {label}
-            </button>
-          ))}
-        </div>
-        <div className="admin-content">{content}</div>
-      </div>
-    </>
   );
 }

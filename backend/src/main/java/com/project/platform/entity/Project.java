@@ -7,8 +7,9 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 /**
- * Canonical Project entity.
- * Owned by Member 1 (Student Profile & Projects module).
+ * Core Project entity for CollabNexus.
+ * Defines title, description, required skills, capacity (maxMembers),
+ * lifecycle status, and creator / leader association.
  */
 @Entity
 @Table(name = "projects")
@@ -36,6 +37,10 @@ public class Project {
     @Column(nullable = false)
     private ProjectStatus status;
 
+    @Column(name = "max_members", nullable = false)
+    @Builder.Default
+    private Integer maxMembers = 4;
+
     @Column(name = "created_by", nullable = false)
     private Long createdBy;
 
@@ -50,7 +55,10 @@ public class Project {
         this.createdAt = LocalDateTime.now();
         this.updatedAt = this.createdAt;
         if (this.status == null) {
-            this.status = ProjectStatus.DRAFT;
+            this.status = ProjectStatus.OPEN;
+        }
+        if (this.maxMembers == null || this.maxMembers < 1) {
+            this.maxMembers = 4;
         }
     }
 
@@ -59,3 +67,4 @@ public class Project {
         this.updatedAt = LocalDateTime.now();
     }
 }
+

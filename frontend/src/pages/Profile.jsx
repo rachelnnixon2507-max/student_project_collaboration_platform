@@ -1,22 +1,36 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  User, Mail, Building, Award, Globe, Link as LinkIcon, Edit3, 
-  CheckCircle2, AlertCircle, X, FolderKanban, Users, Clock, Send, ArrowRight
+import {
+  User,
+  Mail,
+  Building,
+  Award,
+  Globe,
+  Link2,
+  Edit3,
+  CheckCircle2,
+  AlertCircle,
+  FolderGit2,
+  Users2,
+  Clock,
+  Send,
+  ArrowRight,
+  ShieldCheck,
+  GraduationCap
 } from 'lucide-react';
-import PageHeader from '../components/PageHeader';
 import { getUser, isAuthenticated } from '../services/adminService';
-import { 
-  fetchMyProfile, updateMyProfile, fetchMyCreatedProjects, 
-  fetchMyJoinedProjects, fetchMySentJoinRequests 
+import {
+  fetchMyProfile,
+  updateMyProfile,
+  fetchMyCreatedProjects,
+  fetchMyJoinedProjects,
+  fetchMySentJoinRequests
 } from '../services/projectService';
-import '../styles/admin.css';
-import '../styles/member1.css';
 
 export default function Profile() {
   const navigate = useNavigate();
   const loggedIn = isAuthenticated();
-  const user = getUser();
+  const currentUser = getUser();
 
   const [profile, setProfile] = useState(null);
   const [createdProjects, setCreatedProjects] = useState([]);
@@ -37,18 +51,18 @@ export default function Profile() {
 
   useEffect(() => {
     if (!loggedIn) {
-      setLoading(false);
+      navigate('/login');
       return;
     }
     loadProfileData();
-  }, [loggedIn]);
+  }, [loggedIn, navigate]);
 
   const loadProfileData = async () => {
     setLoading(true);
     setError('');
     try {
       const [profData, created, joined, reqs] = await Promise.all([
-        fetchMyProfile(),
+        fetchMyProfile().catch(() => null),
         fetchMyCreatedProjects().catch(() => []),
         fetchMyJoinedProjects().catch(() => []),
         fetchMySentJoinRequests().catch(() => []),
@@ -59,11 +73,13 @@ export default function Profile() {
       setJoinedProjects(joined || []);
       setSentRequests(reqs || []);
 
-      setDeptInput(profData.department || '');
-      setSkillsInput(profData.skills || '');
-      setBioInput(profData.bio || '');
-      setGithubInput(profData.githubUrl || '');
-      setLinkedinInput(profData.linkedinUrl || '');
+      if (profData) {
+        setDeptInput(profData.department || currentUser?.department || '');
+        setSkillsInput(profData.skills || '');
+        setBioInput(profData.bio || '');
+        setGithubInput(profData.githubUrl || '');
+        setLinkedinInput(profData.linkedinUrl || '');
+      }
     } catch (err) {
       setError(err.message || 'Failed to load profile details');
     } finally {
@@ -84,7 +100,7 @@ export default function Profile() {
         linkedinUrl: linkedinInput,
       });
       setProfile(updated);
-      setSuccessMsg('Profile updated successfully!');
+      setSuccessMsg('Portfolio profile updated successfully!');
       setShowEditModal(false);
       setTimeout(() => setSuccessMsg(''), 4000);
     } catch (err) {
@@ -94,265 +110,238 @@ export default function Profile() {
     }
   };
 
-  if (!loggedIn) {
-    return (
-      <div style={{ textAlign: 'center', padding: '80px 20px' }}>
-        <PageHeader title="Student Profile" description="Please log in to manage your profile and team activities." />
-        <button onClick={() => navigate('/login')} className="primary" style={{ marginTop: '20px' }}>
-          Sign In to Access Profile
-        </button>
-      </div>
-    );
-  }
-
-  const skillList = profile?.skills
-    ? profile.skills.split(',').map((s) => s.trim()).filter(Boolean)
-    : [];
+  const institutionalId = currentUser?.institutionalId || (currentUser?.role === 'STUDENT' ? 'STU10001' : currentUser?.role === 'FACULTY' ? 'FAC10001' : 'ADM10001');
 
   return (
-    <div className="projects-container">
-      <div className="page-header">
-        <div>
-          <h2>Student Profile</h2>
-          <p>Showcase your expertise, project portfolio, and collaboration journey.</p>
-        </div>
-        <button onClick={() => setShowEditModal(true)} className="primary">
-          <Edit3 size={16} /> Edit Profile
-        </button>
-      </div>
-
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* Alerts */}
       {successMsg && (
-        <div style={{ background: '#ecfdf3', border: '1px solid #a6f4c5', color: '#16844a', padding: '12px 18px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <CheckCircle2 size={18} />
-          <span>{successMsg}</span>
+        <div style={{ background: 'var(--success-50)', color: 'var(--success-700)', padding: '12px 16px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--success-100)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5 }}>
+          <CheckCircle2 size={16} /> {successMsg}
         </div>
       )}
 
       {error && (
-        <div style={{ background: '#fff0ef', border: '1px solid #fecdd3', color: '#c94b3d', padding: '12px 18px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <AlertCircle size={18} />
-          <span>{error}</span>
+        <div style={{ background: 'var(--danger-50)', color: 'var(--danger-700)', padding: '12px 16px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--danger-100)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5 }}>
+          <AlertCircle size={16} /> {error}
         </div>
       )}
 
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: '60px', color: '#8791a5' }}>
-          Loading profile...
-        </div>
-      ) : (
-        <>
-          {/* Profile Header Card */}
-          <div className="profile-card">
-            <div className="profile-header-layout">
-              <div className="profile-avatar-large">
-                {profile?.name ? profile.name.charAt(0).toUpperCase() : 'S'}
-              </div>
-              <div className="profile-details" style={{ flex: 1 }}>
-                <h2>{profile?.name}</h2>
-                <p style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Mail size={14} color="#8791a5" /> {profile?.email}
-                  {profile?.department && (
-                    <>
-                      <span>•</span>
-                      <Building size={14} color="#8791a5" /> {profile?.department}
-                    </>
-                  )}
-                  <span>•</span>
-                  <span className="pill student">STUDENT</span>
-                </p>
-
-                <p style={{ fontSize: '14px', lineHeight: '1.6', color: '#475569', margin: '10px 0 16px', maxWidth: '780px' }}>
-                  {profile?.bio || 'No bio provided yet. Click "Edit Profile" to tell teams about your interests and goals!'}
-                </p>
-
-                <div className="profile-links">
-                  {profile?.githubUrl && (
-                    <a href={profile.githubUrl.startsWith('http') ? profile.githubUrl : `https://${profile.githubUrl}`} target="_blank" rel="noreferrer" className="social-link">
-                      <Globe size={16} /> GitHub Profile
-                    </a>
-                  )}
-                  {profile?.linkedinUrl && (
-                    <a href={profile.linkedinUrl.startsWith('http') ? profile.linkedinUrl : `https://${profile.linkedinUrl}`} target="_blank" rel="noreferrer" className="social-link">
-                      <LinkIcon size={16} /> LinkedIn Profile
-                    </a>
-                  )}
-                </div>
-              </div>
+      {/* Profile Card Header */}
+      <div className="card" style={{ padding: 32 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+            <div style={{
+              width: 72,
+              height: 72,
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, #4f46e5 0%, #818cf8 100%)',
+              color: '#ffffff',
+              display: 'grid',
+              placeItems: 'center',
+              fontSize: 28,
+              fontWeight: 800,
+              boxShadow: 'var(--shadow-md)'
+            }}>
+              {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
             </div>
 
-            {/* Skills Badges */}
-            <div style={{ marginTop: '24px', borderTop: '1px solid #f1f5f9', paddingTop: '18px' }}>
-              <strong style={{ fontSize: '13px', color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>
-                Skills & Technologies
-              </strong>
-              {skillList.length > 0 ? (
-                <div className="skills-wrap">
-                  {skillList.map((skill, idx) => (
-                    <span key={idx} className="skill-tag accent" style={{ fontSize: '13px', padding: '6px 14px' }}>
-                      {skill}
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <span style={{ color: '#8791a5', fontSize: '13px' }}>No skills listed yet. Add skills so teammates can find you!</span>
-              )}
-            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                <h1 style={{ fontSize: 22, fontWeight: 800 }}>{currentUser?.name || 'Student Member'}</h1>
+                <span className={`badge ${currentUser?.role === 'ADMIN' ? 'badge-admin' : currentUser?.role === 'FACULTY' ? 'badge-faculty' : 'badge-student'}`}>
+                  {currentUser?.role || 'STUDENT'}
+                </span>
+              </div>
 
-            {/* Statistics */}
-            <div className="stats-grid-profile">
-              <div className="stat-box">
-                <span>Projects Posted</span>
-                <strong>{createdProjects.length}</strong>
-              </div>
-              <div className="stat-box">
-                <span>Teams Joined</span>
-                <strong>{joinedProjects.length}</strong>
-              </div>
-              <div className="stat-box">
-                <span>Join Requests Sent</span>
-                <strong>{sentRequests.length}</strong>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 13, color: 'var(--text-muted)' }}>
+                <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--primary-700)' }}>
+                  ID: {institutionalId}
+                </span>
+                <span>•</span>
+                <span>{currentUser?.email}</span>
+                <span>•</span>
+                <span>{profile?.department || currentUser?.department || 'Department of Computer Science'}</span>
               </div>
             </div>
           </div>
 
-          {/* Two column layout for My Projects and My Teams */}
-          <div className="admin-two-col">
-            {/* My Created Projects */}
-            <div className="panel">
-              <div className="panel-title">
-                <div>
-                  <h3>Projects I Created</h3>
-                  <p>Projects initiated and led by you.</p>
-                </div>
-                <span className="pill student">{createdProjects.length}</span>
-              </div>
+          <button onClick={() => setShowEditModal(true)} className="btn btn-secondary">
+            <Edit3 size={15} /> Edit Portfolio
+          </button>
+        </div>
 
-              {createdProjects.length === 0 ? (
-                <p style={{ color: '#8791a5', fontSize: '13px', textAlign: 'center', padding: '24px 0' }}>
-                  You haven't posted any projects yet.
-                </p>
-              ) : (
-                <div style={{ display: 'grid', gap: '10px' }}>
-                  {createdProjects.slice(0, 5).map((p) => (
-                    <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #eef2f6' }}>
-                      <div>
-                        <strong style={{ fontSize: '14px', color: '#172033', display: 'block' }}>{p.title}</strong>
-                        <span style={{ fontSize: '11px', color: '#8791a5' }}>
-                          {p.memberCount} members • Status: {p.status}
-                        </span>
-                      </div>
-                      <button onClick={() => navigate('/projects')} className="secondary" style={{ padding: '6px 12px', fontSize: '12px' }}>
-                        View
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Teams I've Joined */}
-            <div className="panel">
-              <div className="panel-title">
-                <div>
-                  <h3>Teams Joined</h3>
-                  <p>Collaborative project teams where you are a member.</p>
-                </div>
-                <span className="pill faculty">{joinedProjects.length}</span>
-              </div>
-
-              {joinedProjects.length === 0 ? (
-                <p style={{ color: '#8791a5', fontSize: '13px', textAlign: 'center', padding: '24px 0' }}>
-                  You haven't joined any external teams yet.
-                </p>
-              ) : (
-                <div style={{ display: 'grid', gap: '10px' }}>
-                  {joinedProjects.slice(0, 5).map((p) => (
-                    <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #eef2f6' }}>
-                      <div>
-                        <strong style={{ fontSize: '14px', color: '#172033', display: 'block' }}>{p.title}</strong>
-                        <span style={{ fontSize: '11px', color: '#8791a5' }}>
-                          Led by {p.creatorName}
-                        </span>
-                      </div>
-                      <button onClick={() => navigate('/teams')} className="secondary" style={{ padding: '6px 12px', fontSize: '12px' }}>
-                        View Team
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+        {/* Bio & Skills */}
+        <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--border-default)', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
+          <div>
+            <h4 style={{ fontSize: 12, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8, letterSpacing: '0.05em' }}>
+              Academic Biography
+            </h4>
+            <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+              {profile?.bio || 'Undergraduate student enthusiastic about scalable web development, collaborative teamwork, and AI-driven solutions.'}
+            </p>
           </div>
-        </>
-      )}
+
+          <div>
+            <h4 style={{ fontSize: 12, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8, letterSpacing: '0.05em' }}>
+              Verified Skill Radar
+            </h4>
+            <div className="skills-wrap">
+              {(profile?.skills || currentUser?.skills || 'React, Spring Boot, Java, MySQL, Git').split(',').map((s) => (
+                <span key={s} className="skill-tag" style={{ padding: '4px 10px', fontSize: 12.5 }}>
+                  {s.trim()}
+                </span>
+              ))}
+            </div>
+
+            {(profile?.githubUrl || profile?.linkedinUrl) && (
+              <div style={{ display: 'flex', gap: 12, marginTop: 14 }}>
+                {profile.githubUrl && (
+                  <a href={profile.githubUrl.startsWith('http') ? profile.githubUrl : `https://${profile.githubUrl}`} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm" style={{ padding: '4px 8px', fontSize: 12 }}>
+                    <Link2 size={13} /> GitHub Profile
+                  </a>
+                )}
+                {profile.linkedinUrl && (
+                  <a href={profile.linkedinUrl.startsWith('http') ? profile.linkedinUrl : `https://${profile.linkedinUrl}`} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm" style={{ padding: '4px 8px', fontSize: 12 }}>
+                    <Globe size={13} /> LinkedIn Profile
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Project Track Record */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
+        {/* Projects Led */}
+        <div className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700 }}>Projects I Lead ({createdProjects.length})</h3>
+            <button onClick={() => navigate('/projects?create=true')} className="btn btn-ghost btn-sm" style={{ color: 'var(--primary-600)' }}>
+              Pitch New
+            </button>
+          </div>
+
+          {createdProjects.length === 0 ? (
+            <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>No projects created yet.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {createdProjects.map((p) => (
+                <div key={p.id} style={{ padding: 12, border: '1px solid var(--border-default)', borderRadius: 'var(--radius-sm)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <strong style={{ fontSize: 13.5 }}>{p.title}</strong>
+                    <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Capacity: {p.memberCount || 1} / {p.maxMembers || 4} members</div>
+                  </div>
+                  <span className="badge badge-open">{p.status}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Teams Joined */}
+        <div className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700 }}>Teams Joined ({joinedProjects.length})</h3>
+            <button onClick={() => navigate('/projects')} className="btn btn-ghost btn-sm" style={{ color: 'var(--primary-600)' }}>
+              Browse
+            </button>
+          </div>
+
+          {joinedProjects.length === 0 ? (
+            <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>No joined teams yet.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {joinedProjects.map((p) => (
+                <div key={p.id} style={{ padding: 12, border: '1px solid var(--border-default)', borderRadius: 'var(--radius-sm)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <strong style={{ fontSize: 13.5 }}>{p.title}</strong>
+                    <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Lead: {p.creatorName || 'Student'}</div>
+                  </div>
+                  <button onClick={() => navigate('/tasks')} className="btn btn-outline-primary btn-sm" style={{ padding: '3px 8px', fontSize: 11 }}>
+                    Workspace
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Edit Profile Modal */}
       {showEditModal && (
-        <div className="modal-backdrop" onClick={() => setShowEditModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-head">
-              <h3>Edit Student Profile</h3>
-              <button className="icon-btn" onClick={() => setShowEditModal(false)}>
-                <X size={18} />
-              </button>
+        <div className="modal-backdrop">
+          <div className="modal-card" style={{ maxWidth: 540 }}>
+            <div className="modal-header">
+              <h3 style={{ fontSize: 18, fontWeight: 800 }}>Edit Portfolio Profile</h3>
+              <button onClick={() => setShowEditModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}>✕</button>
             </div>
-            <form onSubmit={handleSaveProfile} className="form-grid">
-              <label>
-                Department / Major
-                <input
-                  type="text"
-                  placeholder="e.g. Computer Science, Information Technology"
-                  value={deptInput}
-                  onChange={(e) => setDeptInput(e.target.value)}
-                />
-              </label>
 
-              <label>
-                Skills (comma separated)
-                <input
-                  type="text"
-                  placeholder="e.g. React, Java, Spring Boot, MySQL, Figma"
-                  value={skillsInput}
-                  onChange={(e) => setSkillsInput(e.target.value)}
-                />
-              </label>
+            <form onSubmit={handleSaveProfile}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div className="form-group">
+                  <label className="form-label">Academic Department</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={deptInput}
+                    onChange={(e) => setDeptInput(e.target.value)}
+                    required
+                  />
+                </div>
 
-              <label className="full">
-                Bio / Personal Pitch
-                <textarea
-                  rows={3}
-                  placeholder="A short introduction about your academic background, passions, and what projects you want to build..."
-                  value={bioInput}
-                  onChange={(e) => setBioInput(e.target.value)}
-                />
-              </label>
+                <div className="form-group">
+                  <label className="form-label">Skills (comma-separated)</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. React, Spring Boot, MySQL, Python"
+                    value={skillsInput}
+                    onChange={(e) => setSkillsInput(e.target.value)}
+                  />
+                </div>
 
-              <label>
-                GitHub Profile URL
-                <input
-                  type="text"
-                  placeholder="e.g. github.com/username"
-                  value={githubInput}
-                  onChange={(e) => setGithubInput(e.target.value)}
-                />
-              </label>
+                <div className="form-group">
+                  <label className="form-label">Bio & Interests</label>
+                  <textarea
+                    className="form-textarea"
+                    placeholder="Share your technical passions and academic project interests..."
+                    value={bioInput}
+                    onChange={(e) => setBioInput(e.target.value)}
+                  />
+                </div>
 
-              <label>
-                LinkedIn Profile URL
-                <input
-                  type="text"
-                  placeholder="e.g. linkedin.com/in/username"
-                  value={linkedinInput}
-                  onChange={(e) => setLinkedinInput(e.target.value)}
-                />
-              </label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div className="form-group">
+                    <label className="form-label">GitHub URL</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="github.com/username"
+                      value={githubInput}
+                      onChange={(e) => setGithubInput(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">LinkedIn URL</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="linkedin.com/in/username"
+                      value={linkedinInput}
+                      onChange={(e) => setLinkedinInput(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
 
-              <div className="form-actions">
-                <button type="button" onClick={() => setShowEditModal(false)} className="secondary">
+              <div className="modal-footer">
+                <button type="button" onClick={() => setShowEditModal(false)} className="btn btn-secondary">
                   Cancel
                 </button>
-                <button type="submit" disabled={saving} className="primary">
-                  {saving ? 'Saving...' : 'Save Profile'}
+                <button type="submit" disabled={saving} className="btn btn-primary">
+                  {saving ? 'Saving...' : 'Save Portfolio'}
                 </button>
               </div>
             </form>

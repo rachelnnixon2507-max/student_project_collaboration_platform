@@ -1,69 +1,106 @@
-import { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import PageHeader from '../components/PageHeader';
-import '../styles/collaboration.css';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  MessageSquare,
+  Send,
+  Users2,
+  User,
+  Hash,
+  Search,
+  CheckCheck,
+  Plus,
+  ArrowRight
+} from 'lucide-react';
+import { getUser, isAuthenticated } from '../services/adminService';
 import {
   sendMessage,
   fetchProjectMessages,
   fetchDirectMessages,
   fetchActiveConversations
 } from '../services/collaborationService';
-import { fetchProjects, getUser } from '../services/adminService';
+import {
+  fetchMyCreatedProjects,
+  fetchMyJoinedProjects,
+  fetchProjects
+} from '../services/projectService';
 
 export default function Messages() {
   const navigate = useNavigate();
+  const loggedIn = isAuthenticated();
+  const currentUser = getUser();
+
   const [conversations, setConversations] = useState([]);
-  const [activeChat, setActiveChat] = useState({ type: 'PROJECT', id: 1, title: 'Campus Smart Parking' });
+  const [activeChat, setActiveChat] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessageText, setNewMessageText] = useState('');
   const [loading, setLoading] = useState(false);
+  const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
 
-  // Quick direct message modal / input
-  const [targetUserId, setTargetUserId] = useState('');
+  // New Direct message modal
+  const [showDirectModal, setShowDirectModal] = useState(false);
+  const [directRecipientId, setDirectRecipientId] = useState('');
+  const [directRecipientName, setDirectRecipientName] = useState('');
 
   const messagesEndRef = useRef(null);
-  const currentUser = getUser();
-  const currentUserId = currentUser?.id || 1;
 
-  // Load conversation list and initial channels
   useEffect(() => {
-    loadConversationList();
-  }, []);
+    if (!loggedIn) {
+      navigate('/login');
+      return;
+    }
+    loadAllConversations();
+  }, [loggedIn, navigate]);
 
-  // Reload messages whenever activeChat changes
   useEffect(() => {
     if (!activeChat) return;
     loadMessagesForActiveChat();
   }, [activeChat]);
 
-  // Auto-scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  async function loadConversationList() {
+  const loadAllConversations = async () => {
     try {
-      const convList = await fetchActiveConversations();
-      if (convList && convList.length > 0) {
-        setConversations(convList);
-      } else {
-        // Fallback default project channels
-        setConversations([
-          { conversationType: 'PROJECT', targetId: 1, title: 'Campus Smart Parking', subtitle: 'Project Team Chat', lastMessage: 'Welcome to team chat!' },
-          { conversationType: 'PROJECT', targetId: 2, title: 'AI Study Planner', subtitle: 'Project Team Chat', lastMessage: 'Sprint kickoff tomorrow.' },
-          { conversationType: 'PROJECT', targetId: 3, title: 'IoT Lab Monitor', subtitle: 'Project Team Chat', lastMessage: 'Sensors arriving soon.' },
-        ]);
-      }
-    } catch (err) {
-      setConversations([
-        { conversationType: 'PROJECT', targetId: 1, title: 'Campus Smart Parking', subtitle: 'Project Team Chat', lastMessage: 'Welcome to team chat!' },
-        { conversationType: 'PROJECT', targetId: 2, title: 'AI Study Planner', subtitle: 'Project Team Chat', lastMessage: 'Sprint kickoff tomorrow.' },
+      const [created, joined, convList] = await Promise.all([
+        fetchMyCreatedProjects().catch(() => []),
+        fetchMyJoinedProjects().catch(() => []),
+        fetchActiveConversations().catch(() => []),
       ]);
-    }
-  }
 
-  async function loadMessagesForActiveChat() {
+      const projectChannels = [...created, ...joined.filter(jp => !created.some(cp => cp.id === jp.id))].map((p) => ({
+        type: 'PROJECT',
+        id: p.id,
+        title: p.title,
+        subtitle: `Project Team Channel`,
+      }));
+
+      // If user has no active projects, fetch public projects
+      let initialList = projectChannels;
+      if (initialList.length === 0) {
+        const publicRes = await fetchProjects({ page: 0, size: 5 });
+        if (publicRes && publicRes.content) {
+          initialList = publicRes.content.map((p) => ({
+            type: 'PROJECT',
+            id: p.id,
+            title: p.title,
+            subtitle: `Project Team Channel`,
+          }));
+        }
+      }
+
+      setConversations(initialList);
+      if (initialList.length > 0 && !activeChat) {
+        setActiveChat(initialList[0]);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const loadMessagesForActiveChat = async () => {
+    if (!activeChat) return;
     setLoading(true);
     setError('');
     try {
@@ -73,244 +110,272 @@ export default function Messages() {
       } else {
         res = await fetchDirectMessages(activeChat.id);
       }
-      setMessages(res || []);
+      setMessages(Array.isArray(res) ? res : []);
     } catch (err) {
-      // If unauthenticated guest, gracefully clear error
-      if (!currentUser || err.message?.includes('403') || err.message?.includes('401')) {
-        setError('');
-        setMessages([]);
-      } else {
-        setError(err.message || 'Failed to load messages');
-      }
+      setError(err.message || 'Failed to load conversation');
     } finally {
       setLoading(false);
     }
-  }
+  };
 
-  async function handleSendMessage(e) {
+  const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!currentUser) {
-      alert('Please sign in to send messages and participate in discussions.');
-      navigate('/login');
-      return;
-    }
-    if (!newMessageText.trim()) return;
+    if (!newMessageText.trim() || !activeChat) return;
 
-    const payload = {
-      content: newMessageText.trim(),
-      messageType: 'TEXT',
-      projectId: activeChat.type === 'PROJECT' ? Number(activeChat.id) : null,
-      receiverId: activeChat.type === 'DIRECT' ? Number(activeChat.id) : null,
-    };
-
+    setSending(true);
     try {
+      const payload = {
+        content: newMessageText.trim(),
+        messageType: 'TEXT',
+      };
+
+      if (activeChat.type === 'PROJECT') {
+        payload.projectId = Number(activeChat.id);
+      } else {
+        payload.receiverId = Number(activeChat.id);
+      }
+
       await sendMessage(payload);
       setNewMessageText('');
       loadMessagesForActiveChat();
-      loadConversationList();
     } catch (err) {
-      alert(err.message);
+      setError(err.message || 'Failed to send message');
+    } finally {
+      setSending(false);
     }
-  }
+  };
 
-  function handleStartDirectMessage(e) {
+  const handleStartDirectChat = (e) => {
     e.preventDefault();
-    if (!currentUser) {
-      alert('Please sign in to start direct messages.');
-      navigate('/login');
-      return;
-    }
-    if (!targetUserId) return;
-    setActiveChat({
+    if (!directRecipientId) return;
+    const directChatObj = {
       type: 'DIRECT',
-      id: Number(targetUserId),
-      title: `User #${targetUserId}`
-    });
-    setTargetUserId('');
-  }
-
-  const projectChannels = conversations.filter(c => c.conversationType === 'PROJECT');
-  const directChats = conversations.filter(c => c.conversationType === 'DIRECT');
+      id: Number(directRecipientId),
+      title: directRecipientName || `Student (${directRecipientId})`,
+      subtitle: 'Direct Message',
+    };
+    setConversations((prev) => [directChatObj, ...prev.filter(c => !(c.type === 'DIRECT' && c.id === directChatObj.id))]);
+    setActiveChat(directChatObj);
+    setShowDirectModal(false);
+    setDirectRecipientId('');
+    setDirectRecipientName('');
+  };
 
   return (
-    <div className="collab-container">
-      <div className="page-header">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h2>Team Chat & Direct Messaging</h2>
-          <p>Collaborate in real-time on project channels or direct message teammates.</p>
+          <h1 style={{ fontSize: 24, fontWeight: 800 }}>Team Discussions & Messages</h1>
+          <p style={{ fontSize: 13.5, color: 'var(--text-muted)' }}>
+            Collaborate in real time with project teammates and student creators.
+          </p>
+        </div>
+
+        <button
+          onClick={() => setShowDirectModal(true)}
+          className="btn btn-secondary btn-sm"
+        >
+          <Plus size={15} /> New Direct Message
+        </button>
+      </div>
+
+      {/* Main Chat Shell */}
+      <div className="chat-shell">
+        {/* Left Sidebar: Channels & Conversations */}
+        <div className="chat-sidebar">
+          <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--border-default)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>
+              Channels & Chats
+            </span>
+          </div>
+
+          <div style={{ overflowY: 'auto', flex: 1, padding: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {conversations.map((conv) => {
+              const isSelected = activeChat && activeChat.type === conv.type && activeChat.id === conv.id;
+              return (
+                <div
+                  key={`${conv.type}-${conv.id}`}
+                  onClick={() => setActiveChat(conv)}
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: 'var(--radius-sm)',
+                    background: isSelected ? 'var(--primary-50)' : 'transparent',
+                    color: isSelected ? 'var(--primary-700)' : 'var(--text-main)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <div style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 8,
+                    background: isSelected ? 'var(--primary-600)' : 'var(--bg-subtle)',
+                    color: isSelected ? '#fff' : 'var(--text-secondary)',
+                    display: 'grid',
+                    placeItems: 'center',
+                    flexShrink: 0
+                  }}>
+                    {conv.type === 'PROJECT' ? <Hash size={16} /> : <User size={16} />}
+                  </div>
+
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: isSelected ? 700 : 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {conv.title}
+                    </div>
+                    <div style={{ fontSize: 11, color: isSelected ? 'var(--primary-600)' : 'var(--text-muted)' }}>
+                      {conv.subtitle}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Right Main Chat Area */}
+        <div className="chat-main">
+          {activeChat ? (
+            <>
+              {/* Header */}
+              <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border-default)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 34, height: 34, borderRadius: 8, background: 'var(--primary-50)', color: 'var(--primary-600)', display: 'grid', placeItems: 'center' }}>
+                    {activeChat.type === 'PROJECT' ? <Hash size={18} /> : <User size={18} />}
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: 15, fontWeight: 700 }}>{activeChat.title}</h3>
+                    <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>{activeChat.subtitle}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Message Stream */}
+              <div className="chat-messages">
+                {loading ? (
+                  <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Loading conversation...</div>
+                ) : messages.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)', margin: 'auto' }}>
+                    <MessageSquare size={40} color="var(--text-subtle)" style={{ margin: '0 auto 12px' }} />
+                    <p style={{ fontSize: 14, fontWeight: 600 }}>Start the conversation!</p>
+                    <p style={{ fontSize: 12.5 }}>Share updates, code snippets, or sprint plans with teammates.</p>
+                  </div>
+                ) : (
+                  messages.map((msg) => {
+                    const isMe = msg.senderId === currentUser?.id;
+                    return (
+                      <div
+                        key={msg.id}
+                        className={`chat-bubble ${isMe ? 'bubble-outgoing' : 'bubble-incoming'}`}
+                      >
+                        {!isMe && (
+                          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--primary-700)', marginBottom: 2 }}>
+                            {msg.senderName || 'Teammate'}
+                          </div>
+                        )}
+                        <div>{msg.content}</div>
+                        <div style={{
+                          fontSize: 10,
+                          opacity: 0.75,
+                          marginTop: 4,
+                          textAlign: isMe ? 'right' : 'left'
+                        }}>
+                          {msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Now'}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Input Area */}
+              <form
+                onSubmit={handleSendMessage}
+                style={{
+                  padding: '16px 20px',
+                  borderTop: '1px solid var(--border-default)',
+                  background: 'var(--bg-surface)',
+                  display: 'flex',
+                  gap: 10,
+                  alignItems: 'center'
+                }}
+              >
+                <input
+                  type="text"
+                  className="form-input"
+                  style={{ flex: 1 }}
+                  placeholder={`Message ${activeChat.title}...`}
+                  value={newMessageText}
+                  onChange={(e) => setNewMessageText(e.target.value)}
+                />
+                <button
+                  type="submit"
+                  disabled={sending || !newMessageText.trim()}
+                  className="btn btn-primary"
+                  style={{ padding: '9px 16px' }}
+                >
+                  <Send size={15} />
+                </button>
+              </form>
+            </>
+          ) : (
+            <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted)', margin: 'auto' }}>
+              Select a channel to begin messaging.
+            </div>
+          )}
         </div>
       </div>
 
-      {!currentUser && (
-        <div style={{ padding: '12px 18px', background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1e40af', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-          <div style={{ fontSize: '13px' }}>
-            <strong style={{ color: '#1d4ed8' }}>Guest Mode:</strong> You are currently viewing discussions as a guest. Sign in to send messages and chat with teammates.
-          </div>
-          <Link
-            to="/login"
-            style={{ padding: '6px 14px', background: '#315bea', color: '#ffffff', borderRadius: '6px', fontSize: '13px', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}
-          >
-            Sign In
-          </Link>
-        </div>
-      )}
-
-      {error && (
-        <div style={{ padding: '12px 16px', background: '#fee2e2', color: '#b91c1c', borderRadius: '8px', marginBottom: '16px' }}>
-          {error}
-        </div>
-      )}
-
-      <div className="chat-container">
-        {/* Left Sidebar */}
-        <div className="chat-sidebar">
-          <div className="chat-sidebar-header">
-            <span>Conversations</span>
-          </div>
-
-          <div className="chat-thread-list">
-            <div style={{ padding: '8px 16px', fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>
-              Project Channels
+      {/* Direct Message Modal */}
+      {showDirectModal && (
+        <div className="modal-backdrop">
+          <div className="modal-card" style={{ maxWidth: 440 }}>
+            <div className="modal-header">
+              <h3 style={{ fontSize: 17, fontWeight: 800 }}>Start Direct Conversation</h3>
+              <button onClick={() => setShowDirectModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}>✕</button>
             </div>
-            {projectChannels.map(c => (
-              <div
-                key={`proj_${c.targetId}`}
-                className={`chat-thread-item ${activeChat.type === 'PROJECT' && activeChat.id === c.targetId ? 'active' : ''}`}
-                onClick={() => setActiveChat({ type: 'PROJECT', id: c.targetId, title: c.title })}
-              >
-                <div className="thread-title">
-                  <span># {c.title}</span>
-                </div>
-                <div className="thread-preview">{c.lastMessage || 'No messages yet'}</div>
-              </div>
-            ))}
 
-            <div style={{ padding: '16px 16px 8px 16px', fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>
-              Direct Messages
-            </div>
-            {directChats.length === 0 ? (
-              <div style={{ padding: '8px 16px', fontSize: '12px', color: '#94a3b8' }}>
-                No active direct messages.
-              </div>
-            ) : (
-              directChats.map(c => (
-                <div
-                  key={`direct_${c.targetId}`}
-                  className={`chat-thread-item ${activeChat.type === 'DIRECT' && activeChat.id === c.targetId ? 'active' : ''}`}
-                  onClick={() => setActiveChat({ type: 'DIRECT', id: c.targetId, title: c.title })}
-                >
-                  <div className="thread-title">
-                    <span>💬 {c.title}</span>
-                    {c.unreadCount > 0 && (
-                      <span style={{ background: '#315bea', color: '#fff', padding: '2px 6px', borderRadius: '10px', fontSize: '10px' }}>
-                        {c.unreadCount}
-                      </span>
-                    )}
-                  </div>
-                  <div className="thread-subtitle">{c.subtitle}</div>
-                  <div className="thread-preview">{c.lastMessage}</div>
+            <form onSubmit={handleStartDirectChat}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div className="form-group">
+                  <label className="form-label">Student User ID *</label>
+                  <input
+                    type="number"
+                    className="form-input"
+                    placeholder="e.g. 2, 3, 4"
+                    value={directRecipientId}
+                    onChange={(e) => setDirectRecipientId(e.target.value)}
+                    required
+                  />
                 </div>
-              ))
-            )}
 
-            {/* Quick start direct chat */}
-            <form onSubmit={handleStartDirectMessage} style={{ padding: '16px', marginTop: 'auto', borderTop: '1px solid #e2e8f0' }}>
-              <label style={{ display: 'block', fontSize: '11px', color: '#64748b', fontWeight: 600, marginBottom: '4px' }}>
-                Chat with User ID:
-              </label>
-              <div style={{ display: 'flex', gap: '6px' }}>
-                <input
-                  type="number"
-                  placeholder="ID (e.g. 2)"
-                  value={targetUserId}
-                  onChange={(e) => setTargetUserId(e.target.value)}
-                  style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px' }}
-                />
-                <button type="submit" style={{ padding: '6px 10px', background: '#315bea', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>
-                  Chat
+                <div className="form-group">
+                  <label className="form-label">Contact Name (Optional)</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. Rahul Krishnan"
+                    value={directRecipientName}
+                    onChange={(e) => setDirectRecipientName(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button type="button" onClick={() => setShowDirectModal(false)} className="btn btn-secondary">
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  Open Chat
                 </button>
               </div>
             </form>
           </div>
         </div>
-
-        {/* Right Chat Area */}
-        <div className="chat-main">
-          <div className="chat-header">
-            <div>
-              <h4 style={{ margin: '0 0 2px 0', fontSize: '16px' }}>
-                {activeChat.type === 'PROJECT' ? `# ${activeChat.title}` : `💬 ${activeChat.title}`}
-              </h4>
-              <span style={{ fontSize: '11px', color: '#64748b' }}>
-                {activeChat.type === 'PROJECT' ? 'Project Team Channel' : 'Direct 1-on-1 Conversation'}
-              </span>
-            </div>
-            <button
-              onClick={loadMessagesForActiveChat}
-              style={{ padding: '6px 12px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}
-            >
-              ↻ Refresh
-            </button>
-          </div>
-
-          <div className="chat-messages-area">
-            {loading ? (
-              <p style={{ textAlign: 'center', color: '#94a3b8' }}>Loading conversation history...</p>
-            ) : messages.length === 0 ? (
-              <div className="empty-state" style={{ margin: 'auto', maxWidth: '360px' }}>
-                <div className="empty-icon">💬</div>
-                <h3>No messages yet</h3>
-                <p>Send the first message to start the discussion!</p>
-              </div>
-            ) : (
-              messages.map(m => {
-                const isMine = m.senderId === currentUserId;
-                return (
-                  <div
-                    key={m.id}
-                    className={`message-bubble ${isMine ? 'message-mine' : 'message-theirs'}`}
-                  >
-                    {!isMine && (
-                      <span className="message-sender">
-                        {m.senderName} • {m.senderRole}
-                      </span>
-                    )}
-                    <div>{m.content}</div>
-                    <span className="message-time">
-                      {m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-                    </span>
-                  </div>
-                );
-              })
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-
-          <form onSubmit={handleSendMessage} className="chat-input-bar">
-            <input
-              type="text"
-              placeholder={currentUser ? `Message ${activeChat.title}...` : 'Please sign in to send messages...'}
-              value={newMessageText}
-              onChange={(e) => setNewMessageText(e.target.value)}
-              disabled={!currentUser}
-            />
-            {currentUser ? (
-              <button type="submit" className="primary" style={{ padding: '10px 20px' }}>
-                Send
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => navigate('/login')}
-                className="primary"
-                style={{ padding: '10px 20px', background: '#315bea' }}
-              >
-                Sign In to Chat
-              </button>
-            )}
-          </form>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

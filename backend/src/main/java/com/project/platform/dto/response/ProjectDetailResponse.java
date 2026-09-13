@@ -19,8 +19,11 @@ public record ProjectDetailResponse(
     LocalDateTime updatedAt,
     List<ProjectMemberResponse> members,
     int memberCount,
+    int maxMembers,
+    int availableSeats,
     boolean isCurrentUserLeader,
     boolean isCurrentUserMember,
     JoinRequestStatus currentUserJoinRequestStatus,
     Long currentUserJoinRequestId
 ) {}
+

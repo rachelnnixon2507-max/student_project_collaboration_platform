@@ -1,35 +1,50 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Users, Shield, UserCheck, Inbox, Send, CheckCircle2, 
-  XCircle, Clock, AlertCircle, Trash2, ArrowRight, Sparkles, Target, Search 
+import {
+  Users2,
+  Shield,
+  UserCheck,
+  Inbox,
+  Send,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  AlertCircle,
+  Trash2,
+  ArrowRight,
+  Sparkles,
+  Target,
+  Search,
+  Kanban,
+  MessageSquare
 } from 'lucide-react';
-import PageHeader from '../components/PageHeader';
-import EmptyState from '../components/EmptyState';
 import { getUser, isAuthenticated } from '../services/adminService';
-import { 
-  fetchMyCreatedProjects, fetchMyJoinedProjects, fetchMySentJoinRequests,
-  fetchProjectJoinRequests, respondToJoinRequest, cancelJoinRequest, removeProjectMember,
+import {
+  fetchMyCreatedProjects,
+  fetchMyJoinedProjects,
+  fetchMySentJoinRequests,
+  fetchProjectJoinRequests,
+  respondToJoinRequest,
+  cancelJoinRequest,
+  removeProjectMember,
   fetchProjects
 } from '../services/projectService';
 import {
   fetchMatchingCandidatesForProject,
   fetchMatchingProjectsForStudent,
-  matchCustomSkills
+  matchCustomSkills,
+  inviteCandidateToProject
 } from '../services/collaborationService';
-import '../styles/admin.css';
-import '../styles/collaboration.css';
-import '../styles/member1.css';
 
 export default function Teams() {
   const navigate = useNavigate();
   const loggedIn = isAuthenticated();
   const currentUser = getUser();
 
-  // Active tab: 'leading' | 'incoming' | 'joined' | 'sent' | 'projectMatch' | 'studentMatch' | 'customMatch'
+  // Active tab: 'leading' | 'joined' | 'sent' | 'aiMatch'
   const [activeTab, setActiveTab] = useState('leading');
 
-  // --- Member 1 State: Teams & Join Requests ---
+  // State
   const [leadingProjects, setLeadingProjects] = useState([]);
   const [joinedProjects, setJoinedProjects] = useState([]);
   const [incomingRequests, setIncomingRequests] = useState([]);
@@ -38,34 +53,42 @@ export default function Teams() {
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  // --- Member 2 State: AI Smart Team Matching ---
-  const [projectsList, setProjectsList] = useState([]);
-  const [selectedProjectId, setSelectedProjectId] = useState(1);
+  // AI Matching sub-tabs
+  const [aiSubTab, setAiSubTab] = useState('projectCandidates'); // 'projectCandidates' | 'studentProjects' | 'customMatch'
+  const [selectedProjectId, setSelectedProjectId] = useState(null);
   const [candidates, setCandidates] = useState([]);
   const [recommendedProjects, setRecommendedProjects] = useState([]);
   const [customCandidates, setCustomCandidates] = useState([]);
-  const [customSkillsInput, setCustomSkillsInput] = useState('Java, Spring Boot, React');
+  const [customSkillsInput, setCustomSkillsInput] = useState('Java, Spring Boot, React, MySQL');
   const [customDeptInput, setCustomDeptInput] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
 
-  useEffect(() => {
-    if (loggedIn) {
-      loadAllTeamData();
-    } else {
-      setLoading(false);
-    }
-    loadProjectsForMatching();
-  }, [loggedIn]);
+  // Invitation State
+  const [invitedMap, setInvitedMap] = useState({});
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [selectedCandidateToInvite, setSelectedCandidateToInvite] = useState(null);
+  const [inviteTargetProjectId, setInviteTargetProjectId] = useState(null);
+  const [inviteCustomNote, setInviteCustomNote] = useState('');
+  const [invitingState, setInvitingState] = useState(false);
 
   useEffect(() => {
-    if (activeTab === 'projectMatch' && selectedProjectId) {
-      loadProjectCandidates(selectedProjectId);
-    } else if (activeTab === 'studentMatch') {
-      loadStudentProjects();
+    if (!loggedIn) {
+      navigate('/login');
+      return;
     }
-  }, [activeTab, selectedProjectId]);
+    loadAllTeamData();
+  }, [loggedIn, navigate]);
 
-  // Load Member 1 data
+  useEffect(() => {
+    if (activeTab === 'aiMatch') {
+      if (aiSubTab === 'projectCandidates' && selectedProjectId) {
+        loadProjectCandidates(selectedProjectId);
+      } else if (aiSubTab === 'studentProjects') {
+        loadStudentProjects();
+      }
+    }
+  }, [activeTab, aiSubTab, selectedProjectId]);
+
   const loadAllTeamData = async () => {
     setLoading(true);
     setError('');
@@ -80,9 +103,9 @@ export default function Teams() {
       setJoinedProjects(joined || []);
       setSentRequests(sent || []);
 
-      // Fetch incoming requests across all leading projects
       if (leading && leading.length > 0) {
-        const reqPromises = leading.map((p) => 
+        setSelectedProjectId(leading[0].id);
+        const reqPromises = leading.map((p) =>
           fetchProjectJoinRequests(p.id).catch(() => [])
         );
         const allReqsNested = await Promise.all(reqPromises);
@@ -97,657 +120,884 @@ export default function Teams() {
     }
   };
 
-  // Load Member 2 matching projects
-  const loadProjectsForMatching = async () => {
+  const loadProjectCandidates = async (projectId) => {
+    if (!projectId) return;
+    setAiLoading(true);
     try {
-      const res = await fetchProjects({ page: 0, size: 20 });
-      if (res && res.content && res.content.length > 0) {
-        setProjectsList(res.content);
-        setSelectedProjectId(res.content[0].id);
-      } else {
-        setProjectsList([
-          { id: 1, title: 'Campus Smart Parking', requiredSkills: 'Java, Spring Boot, React' },
-          { id: 2, title: 'AI Study Planner', requiredSkills: 'Python, React, FastApi' },
-          { id: 3, title: 'IoT Lab Monitor', requiredSkills: 'C++, Microcontrollers, MQTT' },
-          { id: 4, title: 'Student Event Hub', requiredSkills: 'Java, MySQL, React' },
-        ]);
-      }
+      const res = await fetchMatchingCandidatesForProject(projectId, 10);
+      setCandidates(Array.isArray(res) ? res : []);
     } catch (err) {
-      setProjectsList([
-        { id: 1, title: 'Campus Smart Parking', requiredSkills: 'Java, Spring Boot, React' },
-        { id: 2, title: 'AI Study Planner', requiredSkills: 'Python, React, FastApi' },
-        { id: 3, title: 'IoT Lab Monitor', requiredSkills: 'C++, Microcontrollers, MQTT' },
-        { id: 4, title: 'Student Event Hub', requiredSkills: 'Java, MySQL, React' },
-      ]);
+      setCandidates([]);
+    } finally {
+      setAiLoading(false);
     }
   };
 
-  // Member 1 handlers
-  const handleRespond = async (projectId, requestId, status) => {
+  const loadStudentProjects = async () => {
+    setAiLoading(true);
+    try {
+      const res = await fetchMatchingProjectsForStudent(currentUser?.id, 10);
+      setRecommendedProjects(Array.isArray(res) ? res : []);
+    } catch (err) {
+      setRecommendedProjects([]);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleCustomSkillMatch = async (e) => {
+    e.preventDefault();
+    if (!customSkillsInput.trim()) return;
+    setAiLoading(true);
+    try {
+      const res = await matchCustomSkills(customSkillsInput, customDeptInput, 10);
+      setCustomCandidates(Array.isArray(res) ? res : []);
+    } catch (err) {
+      setCustomCandidates([]);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleRespondJoinRequest = async (projectId, requestId, status) => {
     try {
       await respondToJoinRequest(projectId, requestId, status);
-      setSuccessMsg(`Join request ${status.toLowerCase()} successfully!`);
-      loadAllTeamData();
+      setSuccessMsg(`Join request marked as ${status}.`);
       setTimeout(() => setSuccessMsg(''), 4000);
+      loadAllTeamData();
     } catch (err) {
-      setError(err.message || 'Failed to update request');
+      setError(err.message || 'Failed to respond to request');
     }
   };
 
-  const handleCancelRequest = async (projectId, requestId) => {
+  const handleCancelSentRequest = async (projectId, requestId) => {
     try {
       await cancelJoinRequest(projectId, requestId);
-      setSuccessMsg('Join request cancelled.');
-      loadAllTeamData();
+      setSuccessMsg('Join request withdrawn.');
       setTimeout(() => setSuccessMsg(''), 4000);
+      loadAllTeamData();
     } catch (err) {
       setError(err.message || 'Failed to cancel request');
     }
   };
 
-  const handleLeaveTeam = async (projectId) => {
-    if (!window.confirm('Are you sure you want to leave this project team?')) return;
+  const handleRemoveMember = async (projectId, studentId) => {
+    if (!window.confirm('Are you sure you want to remove this member from the team?')) return;
     try {
-      await removeProjectMember(projectId, currentUser.id);
-      setSuccessMsg('You have left the team.');
-      loadAllTeamData();
+      await removeProjectMember(projectId, studentId);
+      setSuccessMsg('Member removed from team.');
       setTimeout(() => setSuccessMsg(''), 4000);
+      loadAllTeamData();
     } catch (err) {
-      setError(err.message || 'Failed to leave team');
+      setError(err.message || 'Failed to remove member');
     }
   };
 
-  // Member 2 matching handlers
-  async function loadProjectCandidates(pid) {
-    setAiLoading(true);
-    setError('');
-    try {
-      const res = await fetchMatchingCandidatesForProject(pid, 10);
-      setCandidates(res || []);
-    } catch (err) {
-      setError(err.message || 'Failed to fetch AI candidate matches');
-    } finally {
-      setAiLoading(false);
-    }
-  }
+  const handleOpenInviteModal = (candidate, overrideProjectId = null) => {
+    const targetProjId = overrideProjectId || selectedProjectId || (leadingProjects[0]?.id);
+    setSelectedCandidateToInvite(candidate);
+    setInviteTargetProjectId(targetProjId);
+    const targetProj = leadingProjects.find(p => p.id === Number(targetProjId));
+    const projName = targetProj ? `"${targetProj.title}"` : 'our project team';
+    setInviteCustomNote(`Hi ${candidate.name || candidate.studentName}, your skills match our requirements for ${projName}. Would love to invite you to collaborate with us!`);
+    setShowInviteModal(true);
+  };
 
-  async function loadStudentProjects() {
-    setAiLoading(true);
-    setError('');
-    try {
-      const studentId = currentUser?.id || 1;
-      const res = await fetchMatchingProjectsForStudent(studentId, 10);
-      setRecommendedProjects(res || []);
-    } catch (err) {
-      setError(err.message || 'Failed to fetch recommended projects');
-    } finally {
-      setAiLoading(false);
-    }
-  }
-
-  async function handleCustomSearch(e) {
+  const handleSendCandidateInvite = async (e) => {
     e.preventDefault();
-    if (!customSkillsInput.trim()) return;
-    setAiLoading(true);
+    if (!selectedCandidateToInvite || !inviteTargetProjectId) return;
+    const candId = selectedCandidateToInvite.studentId || selectedCandidateToInvite.userId;
+    setInvitingState(true);
     setError('');
     try {
-      const res = await matchCustomSkills(customSkillsInput, customDeptInput, 10);
-      setCustomCandidates(res || []);
+      await inviteCandidateToProject(inviteTargetProjectId, candId, inviteCustomNote);
+      setInvitedMap((prev) => ({ ...prev, [`${inviteTargetProjectId}-${candId}`]: true }));
+      setSuccessMsg(`Invitation dispatched to ${selectedCandidateToInvite.name || selectedCandidateToInvite.studentName}! Notification and direct message sent.`);
+      setTimeout(() => setSuccessMsg(''), 5000);
+      setShowInviteModal(false);
     } catch (err) {
-      setError(err.message || 'Custom match search failed');
+      setError(err.message || 'Failed to send invitation');
     } finally {
-      setAiLoading(false);
+      setInvitingState(false);
     }
-  }
+  };
 
-  const pendingIncomingCount = incomingRequests.filter((r) => r.status === 'PENDING').length;
-  const selectedProj = projectsList.find(p => p.id === Number(selectedProjectId));
+  const pendingRequests = incomingRequests.filter((r) => r.status === 'PENDING');
 
   return (
-    <div className="projects-container">
-      <div className="page-header">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
         <div>
-          <h2>Teams & Collaboration Hub</h2>
-          <p>Manage project teams, review candidate join requests, and discover teammates through AI skill matching.</p>
+          <h1 style={{ fontSize: 24, fontWeight: 800 }}>Team Management & AI Matching</h1>
+          <p style={{ fontSize: 13.5, color: 'var(--text-muted)' }}>
+            Review candidate join requests, manage team rosters, and find skill matches.
+          </p>
         </div>
-        <button onClick={() => navigate('/projects')} className="primary">
-          Browse All Projects
+
+        <button
+          onClick={() => navigate('/projects?create=true')}
+          className="btn btn-primary"
+        >
+          Pitch New Project
         </button>
       </div>
 
+      {/* Alerts */}
       {successMsg && (
-        <div style={{ background: '#ecfdf3', border: '1px solid #a6f4c5', color: '#16844a', padding: '12px 18px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <CheckCircle2 size={18} />
-          <span>{successMsg}</span>
+        <div style={{ background: 'var(--success-50)', color: 'var(--success-700)', padding: '12px 16px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--success-100)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5 }}>
+          <CheckCircle2 size={16} /> {successMsg}
         </div>
       )}
 
       {error && (
-        <div style={{ background: '#fff0ef', border: '1px solid #fecdd3', color: '#c94b3d', padding: '12px 18px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <AlertCircle size={18} />
-          <span>{error}</span>
+        <div style={{ background: 'var(--danger-50)', color: 'var(--danger-700)', padding: '12px 16px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--danger-100)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5 }}>
+          <AlertCircle size={16} /> {error}
         </div>
       )}
 
-      {/* Tabs Navigation (Both Member 1 & Member 2) */}
-      <div className="tabs-nav" style={{ background: '#fff', padding: '10px 18px', borderRadius: '14px', border: '1px solid #e8edf5', flexWrap: 'wrap', gap: '8px' }}>
-        <button 
-          className={`tab-btn ${activeTab === 'leading' ? 'active' : ''}`}
+      {/* Main Tabs */}
+      <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid var(--border-default)', paddingBottom: 2 }}>
+        <button
           onClick={() => setActiveTab('leading')}
+          className={`btn ${activeTab === 'leading' ? 'btn-primary' : 'btn-secondary'}`}
+          style={{ fontSize: 13 }}
         >
-          <Shield size={16} /> Teams I Lead ({leadingProjects.length})
-        </button>
-        <button 
-          className={`tab-btn ${activeTab === 'incoming' ? 'active' : ''}`}
-          onClick={() => setActiveTab('incoming')}
-        >
-          <Inbox size={16} /> Incoming Requests 
-          {pendingIncomingCount > 0 && (
-            <span className="pill admin" style={{ marginLeft: '4px', fontSize: '11px' }}>
-              {pendingIncomingCount} new
+          <Shield size={15} />
+          Teams I Lead ({leadingProjects.length})
+          {pendingRequests.length > 0 && (
+            <span style={{ padding: '2px 7px', background: 'var(--danger-600)', color: '#fff', borderRadius: 999, fontSize: 10, fontWeight: 800 }}>
+              {pendingRequests.length}
             </span>
           )}
         </button>
-        <button 
-          className={`tab-btn ${activeTab === 'joined' ? 'active' : ''}`}
+
+        <button
           onClick={() => setActiveTab('joined')}
+          className={`btn ${activeTab === 'joined' ? 'btn-primary' : 'btn-secondary'}`}
+          style={{ fontSize: 13 }}
         >
-          <UserCheck size={16} /> Teams I've Joined ({joinedProjects.length})
-        </button>
-        <button 
-          className={`tab-btn ${activeTab === 'sent' ? 'active' : ''}`}
-          onClick={() => setActiveTab('sent')}
-        >
-          <Send size={16} /> Sent Requests ({sentRequests.length})
+          <Users2 size={15} />
+          Teams Joined ({joinedProjects.length})
         </button>
 
-        {/* Member 2 AI Matching Tabs */}
-        <button 
-          className={`tab-btn ${activeTab === 'projectMatch' ? 'active' : ''}`}
-          onClick={() => setActiveTab('projectMatch')}
+        <button
+          onClick={() => setActiveTab('sent')}
+          className={`btn ${activeTab === 'sent' ? 'btn-primary' : 'btn-secondary'}`}
+          style={{ fontSize: 13 }}
         >
-          <Target size={16} /> AI Candidates for Project
+          <Send size={15} />
+          My Sent Requests ({sentRequests.length})
         </button>
-        <button 
-          className={`tab-btn ${activeTab === 'studentMatch' ? 'active' : ''}`}
-          onClick={() => setActiveTab('studentMatch')}
+
+        <button
+          onClick={() => setActiveTab('aiMatch')}
+          className={`btn ${activeTab === 'aiMatch' ? 'btn-primary' : 'btn-secondary'}`}
+          style={{ fontSize: 13 }}
         >
-          <Sparkles size={16} /> AI Recommended Projects
-        </button>
-        <button 
-          className={`tab-btn ${activeTab === 'customMatch' ? 'active' : ''}`}
-          onClick={() => setActiveTab('customMatch')}
-        >
-          <Search size={16} /> Custom Skill Search
+          <Sparkles size={15} />
+          Smart AI Matcher
         </button>
       </div>
 
-      {loading && (activeTab === 'leading' || activeTab === 'incoming' || activeTab === 'joined' || activeTab === 'sent') ? (
-        <div style={{ textAlign: 'center', padding: '60px', color: '#8791a5' }}>
-          Loading team data...
-        </div>
-      ) : (
-        <>
-          {/* TAB 1: Teams I Lead */}
-          {activeTab === 'leading' && (
-            <div>
-              {!loggedIn ? (
-                <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-                  <p style={{ color: '#64748b' }}>Please sign in to view and manage projects you lead.</p>
-                  <button onClick={() => navigate('/login')} className="primary" style={{ marginTop: '10px' }}>Sign In</button>
-                </div>
-              ) : leadingProjects.length === 0 ? (
-                <EmptyState
-                  title="You haven't created any projects yet"
-                  description="Post a new project to start building and leading your team!"
-                />
-              ) : (
-                <div className="projects-grid">
-                  {leadingProjects.map((proj) => (
-                    <div key={proj.id} className="project-card">
+      {/* Tab 1: Teams I Lead */}
+      {activeTab === 'leading' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          {/* Pending Review Queue for Leader */}
+          {pendingRequests.length > 0 && (
+            <div className="card" style={{ borderLeft: '4px solid var(--warning-600)', background: 'var(--warning-50)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                <Inbox size={20} color="var(--warning-700)" />
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--warning-700)' }}>
+                  Incoming Join Requests Requiring Your Decision ({pendingRequests.length})
+                </h3>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {pendingRequests.map((req) => (
+                  <div
+                    key={req.id}
+                    style={{
+                      padding: 16,
+                      background: 'rgba(8, 16, 36, 0.85)',
+                      border: '1px solid var(--border-default)',
+                      borderRadius: 'var(--radius-sm)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 10
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10 }}>
                       <div>
-                        <div className="project-card-header">
-                          <span className="pill admin" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <Shield size={11} /> Project Leader
-                          </span>
-                          <span className="member-badge">
-                            <Users size={13} />
-                            {proj.memberCount} members
-                          </span>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-main)' }}>
+                          {req.studentName} <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-muted)' }}>({req.studentEmail})</span>
                         </div>
-                        <h3 className="project-card-title">{proj.title}</h3>
-                        <p className="project-card-desc">{proj.description || 'No description'}</p>
+                        <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginTop: 2 }}>
+                          Department: <strong>{req.department || 'CSE'}</strong> • Skills: <span className="skill-tag">{req.skills || 'General'}</span>
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--primary-700)', fontWeight: 600, marginTop: 4 }}>
+                          Applied to: "{req.projectTitle}"
+                        </div>
                       </div>
 
-                      <div className="project-card-footer">
-                        <span className="pill project-open">{proj.status}</span>
-                        <button 
-                          onClick={() => navigate('/projects')}
-                          className="secondary"
-                          style={{ padding: '6px 12px', fontSize: '12px' }}
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          onClick={() => handleRespondJoinRequest(req.projectId, req.id, 'REJECTED')}
+                          className="btn btn-secondary btn-sm"
                         >
-                          Manage Project
+                          Decline
+                        </button>
+                        <button
+                          onClick={() => handleRespondJoinRequest(req.projectId, req.id, 'ACCEPTED')}
+                          className="btn btn-primary btn-sm"
+                        >
+                          <CheckCircle2 size={14} /> Accept Teammate
                         </button>
                       </div>
                     </div>
+
+                    {req.message && (
+                      <div style={{ background: 'var(--bg-subtle)', padding: '10px 12px', borderRadius: 8, fontSize: 13, color: 'var(--text-secondary)', borderLeft: '3px solid var(--primary-500)' }}>
+                        <strong>Pitch:</strong> "{req.message}"
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Leading Projects List */}
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Loading your teams...</div>
+          ) : leadingProjects.length === 0 ? (
+            <div className="card" style={{ textAlign: 'center', padding: '60px 20px' }}>
+              <Shield size={48} color="var(--text-subtle)" style={{ margin: '0 auto 16px' }} />
+              <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>You haven't created any projects yet</h3>
+              <p style={{ fontSize: 13.5, color: 'var(--text-muted)', marginBottom: 20 }}>
+                When you create a project, you become the default Team Leader and can recruit skilled peers.
+              </p>
+              <button onClick={() => navigate('/projects?create=true')} className="btn btn-primary btn-sm">
+                Pitch Project Idea
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              {leadingProjects.map((p) => {
+                const memberCount = p.memberCount || p.members?.length || 1;
+                const maxMembers = p.maxMembers || 4;
+                const availableSeats = p.availableSeats !== undefined ? p.availableSeats : Math.max(0, maxMembers - memberCount);
+
+                return (
+                  <div key={p.id} className="card">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                          <h3 style={{ fontSize: 18, fontWeight: 700 }}>{p.title}</h3>
+                          <span className="badge badge-leader">LEADER</span>
+                          <span className={`badge ${p.status === 'OPEN' ? 'badge-open' : 'badge-in-progress'}`}>
+                            {p.status}
+                          </span>
+                        </div>
+                        <p style={{ fontSize: 13, color: 'var(--text-muted)', maxWidth: 650 }}>{p.description}</p>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          onClick={() => navigate('/tasks')}
+                          className="btn btn-outline-primary btn-sm"
+                        >
+                          <Kanban size={14} /> Sprint Board
+                        </button>
+                        <button
+                          onClick={() => navigate('/messages')}
+                          className="btn btn-secondary btn-sm"
+                        >
+                          <MessageSquare size={14} /> Team Chat
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Capacity & Member Roster */}
+                    <div style={{ borderTop: '1px solid var(--border-default)', paddingTop: 16 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>
+                          Team Roster ({memberCount} / {maxMembers} Members)
+                        </span>
+                        <span className={`badge ${availableSeats > 0 ? 'badge-seats' : 'badge-seats-full'}`}>
+                          {availableSeats > 0 ? `${availableSeats} seat${availableSeats > 1 ? 's' : ''} remaining` : 'Team Full'}
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
+                        {(p.members || [
+                          { studentId: currentUser?.id, studentName: currentUser?.name || 'You', role: 'LEADER', department: currentUser?.department || 'CSE' }
+                        ]).map((m) => (
+                          <div
+                            key={m.id || m.studentId}
+                            style={{
+                              padding: 12,
+                              background: 'var(--bg-subtle)',
+                              borderRadius: 'var(--radius-sm)',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--primary-100)', color: 'var(--primary-700)', display: 'grid', placeItems: 'center', fontWeight: 700, fontSize: 11 }}>
+                                {m.studentName ? m.studentName.charAt(0).toUpperCase() : 'M'}
+                              </div>
+                              <div>
+                                <div style={{ fontSize: 13, fontWeight: 700 }}>
+                                  {m.studentName}{m.studentId === currentUser?.id ? ' (You)' : ''}
+                                </div>
+                                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                                  {m.department || 'Department'}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div>
+                              {m.role === 'LEADER' ? (
+                                <span className="badge badge-leader" style={{ fontSize: 10 }}>Lead</span>
+                              ) : (
+                                <button
+                                  onClick={() => handleRemoveMember(p.id, m.studentId)}
+                                  title="Remove from team"
+                                  className="btn btn-ghost btn-sm"
+                                  style={{ color: 'var(--danger-600)', padding: 4 }}
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab 2: Teams Joined */}
+      {activeTab === 'joined' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {joinedProjects.length === 0 ? (
+            <div className="card" style={{ textAlign: 'center', padding: '60px 20px' }}>
+              <Users2 size={48} color="var(--text-subtle)" style={{ margin: '0 auto 16px' }} />
+              <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>No joined teams yet</h3>
+              <p style={{ fontSize: 13.5, color: 'var(--text-muted)', marginBottom: 20 }}>
+                Browse the project directory and send join requests to projects that match your skills.
+              </p>
+              <button onClick={() => navigate('/projects')} className="btn btn-primary btn-sm">
+                Discover Projects
+              </button>
+            </div>
+          ) : (
+            joinedProjects.map((p) => (
+              <div key={p.id} className="card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                      <h3 style={{ fontSize: 18, fontWeight: 700 }}>{p.title}</h3>
+                      <span className="badge badge-member">MEMBER</span>
+                      <span className={`badge ${p.status === 'OPEN' ? 'badge-open' : 'badge-in-progress'}`}>{p.status}</span>
+                    </div>
+                    <p style={{ fontSize: 13, color: 'var(--text-muted)', maxWidth: 650, marginBottom: 12 }}>
+                      {p.description}
+                    </p>
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                      Project Lead: <strong>{p.creatorName || 'Student Leader'}</strong> ({p.creatorEmail})
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      onClick={() => navigate('/tasks')}
+                      className="btn btn-primary btn-sm"
+                    >
+                      <Kanban size={14} /> Open Sprint Workspace
+                    </button>
+                    <button
+                      onClick={() => navigate('/messages')}
+                      className="btn btn-secondary btn-sm"
+                    >
+                      <MessageSquare size={14} /> Team Chat
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Tab 3: My Sent Requests */}
+      {activeTab === 'sent' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {sentRequests.length === 0 ? (
+            <div className="card" style={{ textAlign: 'center', padding: '60px 20px' }}>
+              <Send size={48} color="var(--text-subtle)" style={{ margin: '0 auto 16px' }} />
+              <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>No sent join requests</h3>
+              <p style={{ fontSize: 13.5, color: 'var(--text-muted)', marginBottom: 20 }}>
+                When you find an open project in the directory, pitch your skills to join their team.
+              </p>
+              <button onClick={() => navigate('/projects')} className="btn btn-primary btn-sm">
+                Explore Projects
+              </button>
+            </div>
+          ) : (
+            sentRequests.map((req) => (
+              <div key={req.id} className="card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                      <h3 style={{ fontSize: 16, fontWeight: 700 }}>{req.projectTitle || 'Campus Project'}</h3>
+                      <span className={`badge ${req.status === 'PENDING' ? 'badge-in-progress' : req.status === 'ACCEPTED' ? 'badge-open' : 'badge-closed'}`}>
+                        {req.status}
+                      </span>
+                    </div>
+                    {req.message && (
+                      <p style={{ fontSize: 13, color: 'var(--text-secondary)', background: 'var(--bg-subtle)', padding: 10, borderRadius: 8, marginTop: 8 }}>
+                        <strong>Your Pitch:</strong> "{req.message}"
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    {req.status === 'PENDING' && (
+                      <button
+                        onClick={() => handleCancelSentRequest(req.projectId, req.id)}
+                        className="btn btn-secondary btn-sm"
+                        style={{ color: 'var(--danger-600)' }}
+                      >
+                        Withdraw Pitch
+                      </button>
+                    )}
+                    {req.status === 'ACCEPTED' && (
+                      <button
+                        onClick={() => navigate('/tasks')}
+                        className="btn btn-primary btn-sm"
+                      >
+                        Go to Workspace
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Tab 4: Smart AI Matcher */}
+      {activeTab === 'aiMatch' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* Sub tabs */}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={() => setAiSubTab('projectCandidates')}
+              className={`btn btn-sm ${aiSubTab === 'projectCandidates' ? 'btn-primary' : 'btn-secondary'}`}
+            >
+              Match Candidates for My Project
+            </button>
+            <button
+              onClick={() => setAiSubTab('studentProjects')}
+              className={`btn btn-sm ${aiSubTab === 'studentProjects' ? 'btn-primary' : 'btn-secondary'}`}
+            >
+              Match Projects for My Profile
+            </button>
+            <button
+              onClick={() => setAiSubTab('customMatch')}
+              className={`btn btn-sm ${aiSubTab === 'customMatch' ? 'btn-primary' : 'btn-secondary'}`}
+            >
+              Custom Skill Radar
+            </button>
+          </div>
+
+          {/* SubTab A: Project Candidates */}
+          {aiSubTab === 'projectCandidates' && (
+            <div className="card">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                <span style={{ fontSize: 13, fontWeight: 700 }}>Select Your Project:</span>
+                <select
+                  className="form-select"
+                  style={{ width: 'auto', minWidth: 260 }}
+                  value={selectedProjectId || ''}
+                  onChange={(e) => {
+                    const pid = Number(e.target.value);
+                    setSelectedProjectId(pid);
+                    loadProjectCandidates(pid);
+                  }}
+                >
+                  {leadingProjects.map((p) => (
+                    <option key={p.id} value={p.id}>{p.title}</option>
                   ))}
+                </select>
+              </div>
+
+              {aiLoading ? (
+                <div style={{ textAlign: 'center', padding: 30, color: 'var(--text-muted)' }}>Calculating candidate skill match scores...</div>
+              ) : candidates.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: 30, color: 'var(--text-muted)' }}>
+                  No matched student candidates found for this project's required skill set.
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(310px, 1fr))', gap: 14 }}>
+                  {candidates.map((c) => {
+                    const candId = c.studentId || c.userId;
+                    const isInvited = invitedMap[`${selectedProjectId}-${candId}`];
+                    return (
+                      <div
+                        key={candId}
+                        style={{
+                          border: '1px solid var(--border-default)',
+                          padding: 16,
+                          borderRadius: 'var(--radius-sm)',
+                          background: 'rgba(6, 12, 28, 0.75)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                          gap: 10
+                        }}
+                      >
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                            <strong style={{ fontSize: 14.5, color: '#fff' }}>{c.name || c.studentName}</strong>
+                            <span className="badge badge-open" style={{ fontWeight: 800 }}>
+                              {c.matchScore !== undefined && c.matchScore !== null
+                                ? `${Math.round(c.matchScore > 1 ? c.matchScore : c.matchScore * 100)}% Match`
+                                : '95% Match'}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, fontFamily: 'var(--font-mono)' }}>
+                            DEPT: {c.department || 'CSE'}
+                          </div>
+                          {c.bio && (
+                            <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 10, lineHeight: 1.35 }}>
+                              {c.bio}
+                            </p>
+                          )}
+                          <div className="skills-wrap" style={{ marginBottom: 12 }}>
+                            {(c.skills || '').split(',').map((sk, idx) => (
+                              <span key={`cand-skill-${candId}-${idx}`} className="skill-tag">{sk.trim()}</span>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: 8, marginTop: 'auto' }}>
+                          <button
+                            onClick={() => handleOpenInviteModal(c)}
+                            disabled={isInvited}
+                            className={`btn ${isInvited ? 'btn-secondary' : 'btn-primary'} btn-sm`}
+                            style={{ flex: 1, padding: '7px 10px', fontSize: 12 }}
+                          >
+                            {isInvited ? (
+                              <>
+                                <CheckCircle2 size={13} color="var(--accent-cyan)" /> Invited
+                              </>
+                            ) : (
+                              <>
+                                <Send size={13} /> Invite to Team
+                              </>
+                            )}
+                          </button>
+                          <button
+                            onClick={() => navigate('/messages')}
+                            className="btn btn-secondary btn-sm"
+                            title="Direct Message"
+                            style={{ padding: '7px 10px', fontSize: 12 }}
+                          >
+                            <MessageSquare size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
           )}
 
-          {/* TAB 2: Incoming Requests */}
-          {activeTab === 'incoming' && (
-            <div>
-              {!loggedIn ? (
-                <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-                  <p style={{ color: '#64748b' }}>Please sign in to view candidate applications.</p>
-                  <button onClick={() => navigate('/login')} className="primary" style={{ marginTop: '10px' }}>Sign In</button>
+          {/* SubTab B: Student Projects */}
+          {aiSubTab === 'studentProjects' && (
+            <div className="card">
+              <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 14 }}>Projects Recommended Based on Your Skills</h3>
+              {aiLoading ? (
+                <div style={{ textAlign: 'center', padding: 30, color: 'var(--text-muted)' }}>Analyzing campus project requirements...</div>
+              ) : recommendedProjects.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: 30, color: 'var(--text-muted)' }}>
+                  No recommended projects found. Add more skills to your profile!
                 </div>
-              ) : incomingRequests.length === 0 ? (
-                <EmptyState
-                  title="No incoming join requests"
-                  description="When students browse your projects and request to join, their applications will appear here for review."
-                />
               ) : (
-                <div style={{ display: 'grid', gap: '14px' }}>
-                  {incomingRequests.map((req) => (
-                    <div key={req.id} className="request-item" style={{ background: '#fff' }}>
-                      <div className="request-item-header">
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
+                  {recommendedProjects.map((p) => {
+                    const projId = p.projectId || p.id;
+                    const projTitle = p.projectTitle || p.title || 'Untitled Project';
+                    const lead = p.leaderName || p.creatorName;
+                    const skillsList = (p.requiredSkills || '').split(',').map((s) => s.trim()).filter(Boolean);
+
+                    return (
+                      <div key={projId} className="card" style={{ padding: 16, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                         <div>
-                          <span style={{ fontSize: '12px', color: '#8791a5', textTransform: 'uppercase', fontWeight: 600 }}>
-                            Application for: <strong>{req.projectTitle}</strong>
-                          </span>
-                          <h4 style={{ margin: '4px 0 2px', fontSize: '16px', color: '#172033' }}>
-                            {req.studentName}
-                          </h4>
-                          <span style={{ fontSize: '13px', color: '#64748b' }}>
-                            {req.studentEmail} {req.studentDepartment || req.department ? `• ${req.studentDepartment || req.department}` : ''}
-                          </span>
-                          {(req.studentSkills || req.skills) && (
-                            <div style={{ marginTop: '6px' }}>
-                              <span className="skill-tag accent">{req.studentSkills || req.skills}</span>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
+                            <strong style={{ fontSize: 14.5, color: '#fff' }}>{projTitle}</strong>
+                            <span className="badge badge-open" style={{ fontWeight: 800, whiteSpace: 'nowrap' }}>
+                              {p.matchScore !== undefined && p.matchScore !== null
+                                ? `${Math.round(p.matchScore > 1 ? p.matchScore : p.matchScore * 100)}% Match`
+                                : '90% Match'}
+                            </span>
+                          </div>
+                          {lead && (
+                            <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 8, fontFamily: 'var(--font-mono)' }}>
+                              LEAD: {lead}
+                            </div>
+                          )}
+                          <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 12, lineHeight: 1.4 }}>
+                            {p.description}
+                          </p>
+                          {skillsList.length > 0 && (
+                            <div className="skills-wrap" style={{ marginBottom: 14 }}>
+                              {skillsList.map((sk, idx) => (
+                                <span key={`proj-rec-skill-${projId}-${idx}`} className="skill-tag">{sk}</span>
+                              ))}
                             </div>
                           )}
                         </div>
-
-                        <span className={`pill ${req.status === 'ACCEPTED' ? 'faculty' : req.status === 'REJECTED' ? 'risk' : 'admin'}`}>
-                          {req.status}
-                        </span>
+                        <button
+                          onClick={() => projId && navigate(`/projects?id=${projId}`)}
+                          className="btn btn-outline-primary btn-sm"
+                          style={{ width: '100%', marginTop: 'auto' }}
+                        >
+                          View & Join
+                        </button>
                       </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
-                      {req.message && (
-                        <div style={{ background: '#f8fafc', padding: '12px 16px', borderRadius: '10px', border: '1px solid #edf2f7', fontSize: '13px', color: '#334155', fontStyle: 'italic' }}>
-                          "{req.message}"
+          {/* SubTab C: Custom Match Radar */}
+          {aiSubTab === 'customMatch' && (
+            <div className="card">
+              <form onSubmit={handleCustomSkillMatch} style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
+                <div style={{ flex: 2, minWidth: 260 }}>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Enter required skills (e.g. Python, Docker, PyTorch)"
+                    value={customSkillsInput}
+                    onChange={(e) => setCustomSkillsInput(e.target.value)}
+                  />
+                </div>
+                <div style={{ flex: 1, minWidth: 160 }}>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Department (Optional)"
+                    value={customDeptInput}
+                    onChange={(e) => setCustomDeptInput(e.target.value)}
+                  />
+                </div>
+                <button type="submit" className="btn btn-primary">
+                  <Search size={15} /> Find Matches
+                </button>
+              </form>
+
+              {aiLoading ? (
+                <div style={{ textAlign: 'center', padding: 30, color: 'var(--text-muted)' }}>Running skill similarity algorithms...</div>
+              ) : customCandidates.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: 20, color: 'var(--text-muted)' }}>
+                  Enter skills above and click Find Matches to search students across campus.
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
+                  {customCandidates.map((c) => {
+                    const candId = c.studentId || c.userId;
+                    const defaultProjId = selectedProjectId || leadingProjects[0]?.id;
+                    const isInvited = invitedMap[`${defaultProjId}-${candId}`];
+
+                    return (
+                      <div
+                        key={candId}
+                        style={{
+                          border: '1px solid var(--border-default)',
+                          padding: 14,
+                          borderRadius: 'var(--radius-sm)',
+                          background: 'rgba(6, 12, 28, 0.75)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                          gap: 10
+                        }}
+                      >
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                            <strong style={{ fontSize: 13.5, color: '#fff' }}>{c.name || c.studentName}</strong>
+                            <span className="badge badge-open">
+                              {c.matchScore !== undefined && c.matchScore !== null
+                                ? `${Math.round(c.matchScore > 1 ? c.matchScore : c.matchScore * 100)}% Match`
+                                : 'Match'}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>{c.department}</div>
+                          <div className="skills-wrap" style={{ marginBottom: 10 }}>
+                            {(c.skills || '').split(',').map((sk, idx) => (
+                              <span key={`custom-cand-skill-${candId}-${idx}`} className="skill-tag">{sk.trim()}</span>
+                            ))}
+                          </div>
                         </div>
-                      )}
 
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f1f5f9', paddingTop: '10px', marginTop: '6px' }}>
-                        <span style={{ fontSize: '12px', color: '#94a3b8' }}>
-                          Submitted {req.createdAt ? new Date(req.createdAt).toLocaleDateString() : ''}
-                        </span>
-
-                        {req.status === 'PENDING' && (
-                          <div style={{ display: 'flex', gap: '8px' }}>
+                        {leadingProjects.length > 0 && (
+                          <div style={{ display: 'flex', gap: 8, marginTop: 'auto' }}>
                             <button
-                              onClick={() => handleRespond(req.projectId, req.id, 'ACCEPTED')}
-                              className="primary"
-                              style={{ padding: '7px 16px', fontSize: '13px', background: '#16844a' }}
+                              onClick={() => handleOpenInviteModal(c, defaultProjId)}
+                              disabled={isInvited}
+                              className={`btn ${isInvited ? 'btn-secondary' : 'btn-primary'} btn-sm`}
+                              style={{ flex: 1, padding: '6px 10px', fontSize: 11.5 }}
                             >
-                              Accept Candidate
+                              {isInvited ? (
+                                <>
+                                  <CheckCircle2 size={12} color="var(--accent-cyan)" /> Invited
+                                </>
+                              ) : (
+                                <>
+                                  <Send size={12} /> Invite
+                                </>
+                              )}
                             </button>
                             <button
-                              onClick={() => handleRespond(req.projectId, req.id, 'REJECTED')}
-                              className="secondary"
-                              style={{ padding: '7px 16px', fontSize: '13px', color: '#c94b3d' }}
+                              onClick={() => navigate('/messages')}
+                              className="btn btn-secondary btn-sm"
+                              title="Direct Message"
+                              style={{ padding: '6px 10px', fontSize: 11.5 }}
                             >
-                              Decline
+                              <MessageSquare size={12} />
                             </button>
                           </div>
                         )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
           )}
+        </div>
+      )}
 
-          {/* TAB 3: Teams I've Joined */}
-          {activeTab === 'joined' && (
-            <div>
-              {!loggedIn ? (
-                <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-                  <p style={{ color: '#64748b' }}>Please sign in to view your team memberships.</p>
-                  <button onClick={() => navigate('/login')} className="primary" style={{ marginTop: '10px' }}>Sign In</button>
+      {/* Interactive Candidate Invitation Modal */}
+      {showInviteModal && selectedCandidateToInvite && (
+        <div className="modal-backdrop">
+          <div className="modal-card" style={{ maxWidth: 520, border: '1px solid var(--border-glow)' }}>
+            <div className="modal-header">
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Sparkles size={18} color="var(--accent-cyan)" />
+                  <h3 style={{ fontSize: 17, fontWeight: 800, color: '#fff' }}>Send Team Invitation</h3>
                 </div>
-              ) : joinedProjects.length === 0 ? (
-                <EmptyState
-                  title="You haven't joined any project teams yet"
-                  description="Explore open projects and request to collaborate with other students!"
-                />
-              ) : (
-                <div className="projects-grid">
-                  {joinedProjects.map((proj) => (
-                    <div key={proj.id} className="project-card">
-                      <div>
-                        <div className="project-card-header">
-                          <span className="pill student" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <UserCheck size={11} /> Team Member
-                          </span>
-                          <span className="member-badge">
-                            <Users size={13} /> {proj.memberCount} members
-                          </span>
-                        </div>
-                        <h3 className="project-card-title">{proj.title}</h3>
-                        <p className="project-card-desc">{proj.description || 'No description'}</p>
-                      </div>
-
-                      <div className="project-card-footer">
-                        <span>Led by <strong>{proj.creatorName}</strong></span>
-                        <button 
-                          onClick={() => handleLeaveTeam(proj.id)}
-                          className="secondary"
-                          style={{ padding: '6px 12px', fontSize: '12px', color: '#c94b3d' }}
-                        >
-                          Leave Team
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                  Invite <strong style={{ color: 'var(--accent-cyan)' }}>{selectedCandidateToInvite.name || selectedCandidateToInvite.studentName}</strong> to join your project team.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowInviteModal(false)}
+                style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-muted)' }}
+              >
+                ✕
+              </button>
             </div>
-          )}
 
-          {/* TAB 4: Sent Requests */}
-          {activeTab === 'sent' && (
-            <div>
-              {!loggedIn ? (
-                <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-                  <p style={{ color: '#64748b' }}>Please sign in to view your sent join requests.</p>
-                  <button onClick={() => navigate('/login')} className="primary" style={{ marginTop: '10px' }}>Sign In</button>
+            <form onSubmit={handleSendCandidateInvite}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div>
+                  <label className="form-label" style={{ fontSize: 12 }}>Target Project</label>
+                  <select
+                    className="form-input"
+                    value={inviteTargetProjectId || ''}
+                    onChange={(e) => {
+                      const newId = Number(e.target.value);
+                      setInviteTargetProjectId(newId);
+                      const proj = leadingProjects.find((p) => p.id === newId);
+                      if (proj) {
+                        setInviteCustomNote(`Hi ${selectedCandidateToInvite.name || selectedCandidateToInvite.studentName}, your skills match our requirements for "${proj.title}". Would love to have you on our team!`);
+                      }
+                    }}
+                    required
+                  >
+                    {leadingProjects.map((p) => (
+                      <option key={`invite-proj-opt-${p.id}`} value={p.id}>
+                        {p.title} ({p.availableSeats ?? ((p.maxMembers || 4) - (p.memberCount || 1))} seats open)
+                      </option>
+                    ))}
+                  </select>
                 </div>
-              ) : sentRequests.length === 0 ? (
-                <EmptyState
-                  title="No outgoing requests"
-                  description="You haven't submitted any requests to join other project teams yet."
-                />
-              ) : (
-                <div style={{ display: 'grid', gap: '12px' }}>
-                  {sentRequests.map((req) => (
-                    <div key={req.id} className="request-item" style={{ background: '#fff' }}>
-                      <div className="request-item-header">
-                        <div>
-                          <h4 style={{ margin: '0 0 4px', fontSize: '15px', color: '#172033' }}>
-                            {req.projectTitle}
-                          </h4>
-                          <span style={{ fontSize: '12px', color: '#8791a5' }}>
-                            Submitted {req.createdAt ? new Date(req.createdAt).toLocaleDateString() : ''}
-                          </span>
-                        </div>
-                        <span className={`pill ${req.status === 'ACCEPTED' ? 'faculty' : req.status === 'REJECTED' ? 'risk' : 'admin'}`}>
-                          {req.status}
-                        </span>
-                      </div>
 
-                      {req.message && (
-                        <p style={{ margin: '8px 0 0', fontSize: '13px', color: '#64748b' }}>
-                          Your Note: "{req.message}"
-                        </p>
-                      )}
-
-                      {req.status === 'PENDING' && (
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
-                          <button
-                            onClick={() => handleCancelRequest(req.projectId, req.id)}
-                            className="secondary"
-                            style={{ padding: '6px 14px', fontSize: '12px' }}
-                          >
-                            Cancel Request
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* TAB 5: AI Matching - Candidates for Project */}
-          {activeTab === 'projectMatch' && (
-            <div>
-              <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px 20px', marginBottom: '20px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', color: '#64748b', fontWeight: 600, marginBottom: '4px' }}>
-                      Target Project
-                    </label>
-                    <select
-                      value={selectedProjectId}
-                      onChange={(e) => setSelectedProjectId(Number(e.target.value))}
-                      style={{ padding: '8px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontWeight: 600 }}
-                    >
-                      {projectsList.map(p => (
-                        <option key={p.id} value={p.id}>{p.title}</option>
-                      ))}
-                    </select>
+                <div style={{ background: 'rgba(0, 240, 255, 0.05)', border: '1px solid rgba(0, 240, 255, 0.15)', borderRadius: 'var(--radius-sm)', padding: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <span style={{ fontSize: 12.5, fontWeight: 700, color: '#fff' }}>
+                      {selectedCandidateToInvite.name || selectedCandidateToInvite.studentName}
+                    </span>
+                    <span className="badge badge-open" style={{ fontSize: 11 }}>
+                      {selectedCandidateToInvite.matchScore ? `${Math.round(selectedCandidateToInvite.matchScore > 1 ? selectedCandidateToInvite.matchScore : selectedCandidateToInvite.matchScore * 100)}% Match` : 'Skill Match'}
+                    </span>
                   </div>
-                  {selectedProj && (
-                    <div>
-                      <span style={{ fontSize: '12px', color: '#64748b', display: 'block', marginBottom: '4px' }}>Required Skills</span>
-                      <div className="skills-wrap">
-                        {(selectedProj.requiredSkills || '').split(',').map((s, idx) => (
-                          <span key={idx} className="skill-tag skill-matched">
-                            {s.trim()}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                  <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 6 }}>
+                    Dept: {selectedCandidateToInvite.department || 'Engineering'}
+                  </div>
+                  <div className="skills-wrap">
+                    {(selectedCandidateToInvite.skills || '').split(',').map((sk, idx) => (
+                      <span key={`cand-inv-skill-${idx}`} className="skill-tag" style={{ fontSize: 10.5 }}>{sk.trim()}</span>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="form-label" style={{ fontSize: 12 }}>Personalized Invitation Note</label>
+                  <textarea
+                    className="form-input"
+                    rows={3}
+                    value={inviteCustomNote}
+                    onChange={(e) => setInviteCustomNote(e.target.value)}
+                    placeholder="Add an optional note to the student candidate..."
+                  />
+                  <span style={{ fontSize: 11, color: 'var(--text-subtle)', marginTop: 4, display: 'block' }}>
+                    Candidate will receive an in-app notification and a direct chat message thread.
+                  </span>
                 </div>
               </div>
 
-              {aiLoading ? (
-                <p style={{ textAlign: 'center', padding: '40px', color: '#8791a5' }}>Analyzing candidate profiles with AI...</p>
-              ) : candidates.length === 0 ? (
-                <div className="empty-state">
-                  <div className="empty-icon">👥</div>
-                  <h3>No candidates found</h3>
-                  <p>All available students are already team members, or no registered students match criteria.</p>
-                </div>
-              ) : (
-                <div className="ai-match-grid">
-                  {candidates.map(c => {
-                    const scoreClass = c.matchScore >= 80 ? 'match-score-high' : c.matchScore >= 50 ? 'match-score-med' : 'match-score-low';
-                    return (
-                      <div key={c.studentId} className="ai-match-card">
-                        <span className={`match-score-badge ${scoreClass}`}>
-                          {c.matchScore}%
-                        </span>
-
-                        <div className="candidate-header">
-                          <h4 className="candidate-name">{c.name}</h4>
-                          <p className="candidate-sub">{c.department} Dept • {c.email}</p>
-                        </div>
-
-                        {c.bio && <p style={{ fontSize: '12px', color: '#475569', margin: 0 }}>"{c.bio}"</p>}
-
-                        <div>
-                          <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '4px' }}>
-                            MATCHED SKILLS
-                          </span>
-                          <div className="skills-wrap">
-                            {c.matchedSkills && c.matchedSkills.length > 0 ? (
-                              c.matchedSkills.map((s, idx) => (
-                                <span key={idx} className="skill-tag skill-matched">✓ {s}</span>
-                              ))
-                            ) : (
-                              <span style={{ fontSize: '11px', color: '#94a3b8' }}>None</span>
-                            )}
-                            {c.missingSkills && c.missingSkills.map((s, idx) => (
-                              <span key={idx} className="skill-tag skill-missing">{s}</span>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div className="ai-rationale-box">
-                          <b>AI Recommendation:</b> {c.recommendationRationale}
-                        </div>
-
-                        <div style={{ display: 'flex', gap: '8px', marginTop: 'auto' }}>
-                          <a
-                            href={`/messages`}
-                            style={{
-                              flex: 1,
-                              textAlign: 'center',
-                              padding: '8px',
-                              background: '#eef2ff',
-                              color: '#315bea',
-                              borderRadius: '6px',
-                              fontSize: '12px',
-                              fontWeight: 600,
-                              textDecoration: 'none'
-                            }}
-                          >
-                            Direct Message
-                          </a>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* TAB 6: AI Matching - Projects for Me */}
-          {activeTab === 'studentMatch' && (
-            <div>
-              {aiLoading ? (
-                <p style={{ textAlign: 'center', padding: '40px', color: '#8791a5' }}>Finding matching open projects for your profile...</p>
-              ) : recommendedProjects.length === 0 ? (
-                <div className="empty-state">
-                  <div className="empty-icon">🚀</div>
-                  <h3>No projects available to match</h3>
-                  <p>You have already joined all active projects or no open projects are currently recruiting.</p>
-                </div>
-              ) : (
-                <div className="ai-match-grid">
-                  {recommendedProjects.map(p => {
-                    const scoreClass = p.matchScore >= 80 ? 'match-score-high' : p.matchScore >= 50 ? 'match-score-med' : 'match-score-low';
-                    return (
-                      <div key={p.projectId} className="ai-match-card">
-                        <span className={`match-score-badge ${scoreClass}`}>
-                          {p.matchScore}%
-                        </span>
-
-                        <div className="candidate-header">
-                          <h4 className="candidate-name">{p.projectTitle}</h4>
-                          <p className="candidate-sub">Led by {p.leaderName} • Status: {p.projectStatus}</p>
-                        </div>
-
-                        <p style={{ fontSize: '13px', color: '#475569', margin: 0 }}>{p.description}</p>
-
-                        <div>
-                          <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '4px' }}>
-                            MATCHED SKILLS
-                          </span>
-                          <div className="skills-wrap">
-                            {p.matchedSkills && p.matchedSkills.map((s, idx) => (
-                              <span key={idx} className="skill-tag skill-matched">✓ {s}</span>
-                            ))}
-                            {p.missingSkills && p.missingSkills.map((s, idx) => (
-                              <span key={idx} className="skill-tag skill-missing">{s}</span>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div className="ai-rationale-box">
-                          <b>AI Match:</b> {p.recommendationRationale}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* TAB 7: Custom Skill Search */}
-          {activeTab === 'customMatch' && (
-            <div>
-              <form
-                onSubmit={handleCustomSearch}
-                style={{
-                  background: '#fff',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '12px',
-                  padding: '20px',
-                  marginBottom: '24px',
-                  display: 'flex',
-                  gap: '16px',
-                  flexWrap: 'wrap',
-                  alignItems: 'flex-end'
-                }}
-              >
-                <div style={{ flex: 2, minWidth: '240px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>
-                    Required Skills (comma-separated) *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={customSkillsInput}
-                    onChange={(e) => setCustomSkillsInput(e.target.value)}
-                    placeholder="e.g. Python, Docker, PyTorch"
-                    style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1' }}
-                  />
-                </div>
-                <div style={{ flex: 1, minWidth: '150px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>
-                    Department (optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={customDeptInput}
-                    onChange={(e) => setCustomDeptInput(e.target.value)}
-                    placeholder="e.g. CSE, ECE, IT"
-                    style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1' }}
-                  />
-                </div>
-                <button type="submit" className="primary" style={{ padding: '10px 24px' }}>
-                  Run AI Match
+              <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setShowInviteModal(false)}
+                  className="btn btn-secondary btn-sm"
+                  disabled={invitingState}
+                >
+                  Cancel
                 </button>
-              </form>
-
-              {customCandidates.length > 0 && (
-                <div className="ai-match-grid">
-                  {customCandidates.map(c => (
-                    <div key={c.studentId} className="ai-match-card">
-                      <span className={`match-score-badge ${c.matchScore >= 80 ? 'match-score-high' : 'match-score-med'}`}>
-                        {c.matchScore}%
-                      </span>
-                      <div className="candidate-header">
-                        <h4 className="candidate-name">{c.name}</h4>
-                        <p className="candidate-sub">{c.department} • {c.email}</p>
-                      </div>
-                      <div className="skills-wrap">
-                        {c.matchedSkills && c.matchedSkills.map((s, idx) => (
-                          <span key={idx} className="skill-tag skill-matched">✓ {s}</span>
-                        ))}
-                      </div>
-                      <div className="ai-rationale-box">
-                        {c.recommendationRationale}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </>
+                <button
+                  type="submit"
+                  className="btn btn-primary btn-sm"
+                  disabled={invitingState}
+                >
+                  {invitingState ? 'Sending...' : (
+                    <>
+                      <Send size={13} /> Dispatch Invitation
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

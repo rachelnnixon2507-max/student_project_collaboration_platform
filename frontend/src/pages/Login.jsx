@@ -1,90 +1,122 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, GraduationCap, ShieldCheck, LogIn, UserPlus, AlertCircle, CheckCircle2 } from 'lucide-react';
-import PageHeader from '../components/PageHeader';
-import { loginStudent, loginFaculty, registerStudent, registerFaculty, getUser, fetchAdminStatus } from '../services/adminService';
-import '../styles/admin.css';
+import {
+  GraduationCap,
+  ArrowRight,
+  CheckCircle2,
+  Copy,
+  Check,
+  AlertCircle,
+  Eye,
+  EyeOff,
+  UserPlus,
+  Users,
+  Briefcase,
+  Cpu,
+  Lock,
+  Terminal,
+  ShieldCheck
+} from 'lucide-react';
+import {
+  loginUser,
+  registerStudent,
+  registerFaculty,
+  getUser
+} from '../services/adminService';
 
 export default function Login() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('student-login');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
-  const [adminExists, setAdminExists] = useState(true);
+  const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [regType, setRegType] = useState('STUDENT'); // 'STUDENT' | 'FACULTY'
 
   // Form states
-  const [email, setEmail] = useState('');
+  const [emailOrId, setEmailOrId] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [name, setName] = useState('');
-  const [department, setDepartment] = useState('CSE');
-  const [skills, setSkills] = useState('');
-  const [designation, setDesignation] = useState('Professor');
-  const [specialization, setSpecialization] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const currentUser = getUser();
+  // Register Form State
+  const [regForm, setRegForm] = useState({
+    name: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+    department: 'Computer Science & Engineering',
+    skills: '',
+    designation: 'Assistant Professor',
+    specialization: 'Computer Science & Engineering',
+  });
+  const [regSuccessUser, setRegSuccessUser] = useState(null);
+  const [copiedId, setCopiedId] = useState(false);
 
   useEffect(() => {
-    fetchAdminStatus()
-      .then((res) => setAdminExists(res.adminExists))
-      .catch(() => setAdminExists(true));
-  }, []);
-
-  const resetForm = () => {
-    setEmail('');
-    setPassword('');
-    setConfirmPassword('');
-    setName('');
-    setError('');
-    setSuccessMsg('');
-  };
-
-  const handleStudentLogin = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    setSuccessMsg('');
-    try {
-      const data = await loginStudent(email, password);
-      setSuccessMsg(`Welcome back, ${data.name}! Redirecting...`);
-      setTimeout(() => navigate('/dashboard'), 500);
-    } catch (err) {
-      setError(err.message || 'Invalid email or password');
-    } finally {
-      setLoading(false);
+    // If already logged in, redirect based on role
+    const user = getUser();
+    if (user) {
+      if (user.role === 'ADMIN') navigate('/admin');
+      else if (user.role === 'FACULTY') navigate('/faculty');
+      else navigate('/dashboard');
     }
-  };
+  }, [navigate]);
 
-  const handleFacultyLogin = async (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    setError('');
-    setSuccessMsg('');
-    try {
-      const data = await loginFaculty(email, password);
-      setSuccessMsg(`Welcome back, ${data.name}! Redirecting...`);
-      setTimeout(() => navigate('/faculty'), 500);
-    } catch (err) {
-      setError(err.message || 'Invalid email or password');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleRegisterStudent = async (e) => {
-    e.preventDefault();
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
+    if (!emailOrId.trim() || !password.trim()) {
+      setError('Please enter your ID and Password.');
       return;
     }
+
     setLoading(true);
     setError('');
-    setSuccessMsg('');
+
     try {
-      const data = await registerStudent({ name, email, password, confirmPassword, department, skills });
-      setSuccessMsg(`Student account created successfully for ${data.name}! Redirecting...`);
-      setTimeout(() => navigate('/dashboard'), 600);
+      const loggedUser = await loginUser(emailOrId.trim(), password);
+      if (loggedUser.role === 'ADMIN') {
+        navigate('/admin');
+      } else if (loggedUser.role === 'FACULTY') {
+        navigate('/faculty');
+      } else {
+        navigate('/dashboard');
+      }
+    } catch (err) {
+      setError(err.message || 'Invalid ID or Password.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    if (regForm.password !== regForm.confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      let created;
+      if (regType === 'STUDENT') {
+        created = await registerStudent({
+          name: regForm.name.trim(),
+          email: regForm.email.trim(),
+          password: regForm.password,
+          department: regForm.department,
+          skills: regForm.skills.trim(),
+        });
+      } else {
+        created = await registerFaculty({
+          name: regForm.name.trim(),
+          email: regForm.email.trim(),
+          password: regForm.password,
+          department: regForm.department,
+          designation: regForm.designation.trim(),
+          specialization: regForm.specialization.trim(),
+        });
+      }
+      setRegSuccessUser(created);
     } catch (err) {
       setError(err.message || 'Registration failed.');
     } finally {
@@ -92,323 +124,429 @@ export default function Login() {
     }
   };
 
-  const handleRegisterFaculty = async (e) => {
-    e.preventDefault();
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
-    setLoading(true);
-    setError('');
-    setSuccessMsg('');
-    try {
-      const data = await registerFaculty({ name, email, password, confirmPassword, department, designation, specialization });
-      setSuccessMsg(`Faculty account created successfully for ${data.name}! Redirecting...`);
-      setTimeout(() => navigate('/faculty'), 600);
-    } catch (err) {
-      setError(err.message || 'Registration failed.');
-    } finally {
-      setLoading(false);
-    }
+  const copyInstitutionalId = (id) => {
+    if (!id) return;
+    navigator.clipboard.writeText(id);
+    setCopiedId(true);
+    setTimeout(() => setCopiedId(false), 2000);
   };
 
   return (
-    <>
-      <PageHeader
-        title="Account Portal"
-        description="Sign in or create an account for Student Project Collaboration Platform."
-      />
+    <div style={{
+      minHeight: '100vh',
+      background: 'var(--bg-app)',
+      display: 'grid',
+      placeItems: 'center',
+      padding: '30px 16px',
+      position: 'relative'
+    }}>
+      {/* Background cyber ambient spot */}
+      <div style={{
+        position: 'absolute',
+        width: 500,
+        height: 350,
+        background: 'radial-gradient(circle, rgba(0, 240, 255, 0.15) 0%, rgba(168, 85, 247, 0.08) 50%, transparent 70%)',
+        filter: 'blur(50px)',
+        zIndex: 0,
+        pointerEvents: 'none'
+      }} />
 
-      {currentUser && (
-        <div style={{ padding: '14px 20px', background: '#ecfdf3', border: '1px solid #abedd0', color: '#16844a', borderRadius: '12px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            Logged in as <b>{currentUser.name}</b> ({currentUser.role})
+      <div className="card card-hud" style={{
+        width: 'min(450px, 100%)',
+        background: 'rgba(8, 16, 36, 0.88)',
+        border: '1px solid var(--border-strong)',
+        borderRadius: 'var(--radius-lg)',
+        padding: '42px 34px',
+        boxShadow: '0 20px 60px rgba(0, 0, 0, 0.85), 0 0 30px rgba(0, 240, 255, 0.2)',
+        backdropFilter: 'blur(20px)',
+        zIndex: 1
+      }}>
+        {/* Brand Header */}
+        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+          <div style={{
+            width: 54,
+            height: 54,
+            borderRadius: 14,
+            background: 'linear-gradient(135deg, rgba(0, 240, 255, 0.25), rgba(168, 85, 247, 0.35))',
+            border: '1px solid var(--neon-cyan)',
+            color: 'var(--neon-cyan)',
+            display: 'grid',
+            placeItems: 'center',
+            margin: '0 auto 16px',
+            boxShadow: '0 0 20px rgba(0, 240, 255, 0.4)'
+          }}>
+            <Cpu size={30} />
           </div>
-          <button
-            onClick={() => {
-              if (currentUser.role === 'ADMIN') navigate('/admin');
-              else if (currentUser.role === 'FACULTY') navigate('/faculty');
-              else navigate('/dashboard');
-            }}
-            className="primary"
-            style={{ padding: '6px 14px', fontSize: '13px', background: '#16844a', color: '#fff', border: 0, borderRadius: '8px' }}
-          >
-            Go to {currentUser.role === 'ADMIN' ? 'Admin Panel' : 'Dashboard'}
-          </button>
-        </div>
-      )}
-
-      <div style={{ maxWidth: '520px', margin: '20px auto', background: '#fff', padding: '32px', borderRadius: '16px', border: '1px solid #e8edf5', boxShadow: '0 12px 32px rgba(0,0,0,0.04)' }}>
-        <div className="admin-tabs" style={{ marginBottom: '24px', flexWrap: 'wrap', gap: '6px' }}>
-          <button
-            className={activeTab === 'student-login' ? 'selected' : ''}
-            onClick={() => { setActiveTab('student-login'); resetForm(); }}
-          >
-            <User size={15} /> Student Login
-          </button>
-          <button
-            className={activeTab === 'faculty-login' ? 'selected' : ''}
-            onClick={() => { setActiveTab('faculty-login'); resetForm(); }}
-          >
-            <GraduationCap size={15} /> Faculty Login
-          </button>
-          <button
-            className={activeTab === 'student-reg' ? 'selected' : ''}
-            onClick={() => { setActiveTab('student-reg'); resetForm(); }}
-          >
-            <UserPlus size={15} /> Student Signup
-          </button>
-          <button
-            className={activeTab === 'faculty-reg' ? 'selected' : ''}
-            onClick={() => { setActiveTab('faculty-reg'); resetForm(); }}
-          >
-            <UserPlus size={15} /> Faculty Signup
-          </button>
+          <h1 style={{ fontFamily: 'var(--font-hud)', fontSize: 24, fontWeight: 900, color: '#fff', letterSpacing: '0.06em' }}>
+            COLLAB<span style={{ color: 'var(--neon-cyan)', textShadow: '0 0 12px rgba(0,240,255,0.6)' }}>NEXUS</span>
+          </h1>
+          <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 6, letterSpacing: '0.04em' }}>
+            // SECURE GATEWAY AUTHENTICATION
+          </p>
         </div>
 
+        {/* Error Alert */}
         {error && (
-          <div className="alert-banner" style={{ background: '#fff0ef', borderColor: '#f8d7da', color: '#721c24', marginBottom: '16px' }}>
-            <AlertCircle size={18} />
-            <div><span>{error}</span></div>
+          <div style={{
+            background: 'rgba(255, 0, 85, 0.12)',
+            border: '1px solid rgba(255, 0, 85, 0.45)',
+            borderRadius: 'var(--radius-sm)',
+            padding: '12px 14px',
+            fontSize: 13,
+            color: '#ff809b',
+            marginBottom: 20,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            boxShadow: '0 0 12px rgba(255, 0, 85, 0.25)'
+          }}>
+            <AlertCircle size={16} style={{ flexShrink: 0 }} />
+            <span>{error}</span>
           </div>
         )}
 
-        {successMsg && (
-          <div className="alert-banner" style={{ background: '#ecfdf3', borderColor: '#abedd0', color: '#16844a', marginBottom: '16px' }}>
-            <CheckCircle2 size={18} />
-            <div><span>{successMsg}</span></div>
+        {/* Single Universal Login Form */}
+        <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <div className="form-group">
+            <label className="form-label">
+              ID
+            </label>
+            <input
+              type="text"
+              className="form-input"
+              placeholder="ID"
+              value={emailOrId}
+              onChange={(e) => setEmailOrId(e.target.value)}
+              required
+            />
           </div>
-        )}
 
-        {activeTab === 'student-login' && (
-          <form className="form-grid" onSubmit={handleStudentLogin} style={{ gridTemplateColumns: '1fr' }}>
-            <div style={{ textAlign: 'center', marginBottom: '12px' }}>
-              <h3 style={{ margin: '0 0 4px', fontSize: '18px' }}>Student Sign In</h3>
-              <p style={{ margin: 0, color: '#69758a', fontSize: '13px' }}>Access your projects, teams & tasks</p>
-            </div>
-            <label>
-              Student Email
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="student@gmail.com"
-              />
-            </label>
-            <label>
+          <div className="form-group">
+            <label className="form-label">
               Password
+            </label>
+            <div style={{ position: 'relative' }}>
               <input
-                type="password"
-                required
+                type={showPassword ? 'text' : 'password'}
+                className="form-input"
+                style={{ paddingRight: 40 }}
+                placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Student@123"
+                required
               />
-            </label>
-            <button className="primary" disabled={loading} style={{ width: '100%', justifyContent: 'center', padding: '12px', marginTop: '8px', background: '#315bea', color: '#fff', border: 0, borderRadius: '9px', fontWeight: 600 }}>
-              {loading ? 'Authenticating...' : 'Sign In as Student'}
-            </button>
-          </form>
-        )}
-
-        {activeTab === 'faculty-login' && (
-          <form className="form-grid" onSubmit={handleFacultyLogin} style={{ gridTemplateColumns: '1fr' }}>
-            <div style={{ textAlign: 'center', marginBottom: '12px' }}>
-              <h3 style={{ margin: '0 0 4px', fontSize: '18px' }}>Faculty Sign In</h3>
-              <p style={{ margin: 0, color: '#69758a', fontSize: '13px' }}>Evaluate student projects & teams</p>
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{
+                  position: 'absolute',
+                  right: 12,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer'
+                }}
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
             </div>
-            <label>
-              Faculty Email
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="faculty@gmail.com"
-              />
-            </label>
-            <label>
-              Password
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Faculty@123"
-              />
-            </label>
-            <button className="primary" disabled={loading} style={{ width: '100%', justifyContent: 'center', padding: '12px', marginTop: '8px', background: '#315bea', color: '#fff', border: 0, borderRadius: '9px', fontWeight: 600 }}>
-              {loading ? 'Authenticating...' : 'Sign In as Faculty'}
-            </button>
-          </form>
-        )}
+          </div>
 
-        {activeTab === 'student-reg' && (
-          <form className="form-grid" onSubmit={handleRegisterStudent} style={{ gridTemplateColumns: '1fr' }}>
-            <div style={{ textAlign: 'center', marginBottom: '12px' }}>
-              <h3 style={{ margin: '0 0 4px', fontSize: '18px' }}>Student Registration</h3>
-              <p style={{ margin: 0, color: '#69758a', fontSize: '13px' }}>Join the platform as a student member</p>
-            </div>
-            <label>
-              Full Name
-              <input
-                type="text"
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Full Name"
-              />
-            </label>
-            <label>
-              Student Email
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="email@example.com"
-              />
-            </label>
-            <label>
-              Password
-              <input
-                type="password"
-                required
-                minLength={6}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Minimum 6 characters"
-              />
-            </label>
-            <label>
-              Confirm Password
-              <input
-                type="password"
-                required
-                minLength={6}
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Re-enter password"
-              />
-            </label>
-            <label>
-              Department
-              <select value={department} onChange={(e) => setDepartment(e.target.value)}>
-                <option value="CSE">Computer Science (CSE)</option>
-                <option value="IT">Information Technology (IT)</option>
-                <option value="ECE">Electronics (ECE)</option>
-                <option value="EEE">Electrical (EEE)</option>
-                <option value="MECH">Mechanical (MECH)</option>
-              </select>
-            </label>
-            <label>
-              Technical Skills
-              <input
-                type="text"
-                value={skills}
-                onChange={(e) => setSkills(e.target.value)}
-                placeholder="e.g. React, Spring Boot, Python"
-              />
-            </label>
-            <button className="primary" disabled={loading} style={{ width: '100%', justifyContent: 'center', padding: '12px', marginTop: '8px', background: '#315bea', color: '#fff', border: 0, borderRadius: '9px', fontWeight: 600 }}>
-              {loading ? 'Creating Account...' : 'Register as Student'}
-            </button>
-          </form>
-        )}
-
-        {activeTab === 'faculty-reg' && (
-          <form className="form-grid" onSubmit={handleRegisterFaculty} style={{ gridTemplateColumns: '1fr' }}>
-            <div style={{ textAlign: 'center', marginBottom: '12px' }}>
-              <h3 style={{ margin: '0 0 4px', fontSize: '18px' }}>Faculty Registration</h3>
-              <p style={{ margin: 0, color: '#69758a', fontSize: '13px' }}>Join the platform as a faculty mentor</p>
-            </div>
-            <label>
-              Full Name
-              <input
-                type="text"
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Full Name"
-              />
-            </label>
-            <label>
-              Faculty Email
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="email@example.com"
-              />
-            </label>
-            <label>
-              Password
-              <input
-                type="password"
-                required
-                minLength={6}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Minimum 6 characters"
-              />
-            </label>
-            <label>
-              Confirm Password
-              <input
-                type="password"
-                required
-                minLength={6}
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Re-enter password"
-              />
-            </label>
-            <label>
-              Department
-              <select value={department} onChange={(e) => setDepartment(e.target.value)}>
-                <option value="CSE">Computer Science (CSE)</option>
-                <option value="IT">Information Technology (IT)</option>
-                <option value="ECE">Electronics (ECE)</option>
-                <option value="EEE">Electrical (EEE)</option>
-                <option value="MECH">Mechanical (MECH)</option>
-              </select>
-            </label>
-            <label>
-              Designation
-              <input
-                type="text"
-                value={designation}
-                onChange={(e) => setDesignation(e.target.value)}
-                placeholder="e.g. Professor / Associate Professor"
-              />
-            </label>
-            <label>
-              Specialization
-              <input
-                type="text"
-                value={specialization}
-                onChange={(e) => setSpecialization(e.target.value)}
-                placeholder="e.g. Artificial Intelligence, Cloud Systems"
-              />
-            </label>
-            <button className="primary" disabled={loading} style={{ width: '100%', justifyContent: 'center', padding: '12px', marginTop: '8px', background: '#315bea', color: '#fff', border: 0, borderRadius: '9px', fontWeight: 600 }}>
-              {loading ? 'Creating Account...' : 'Register as Faculty'}
-            </button>
-          </form>
-        )}
-
-        <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid #e8edf5', textAlign: 'center', fontSize: '13px' }}>
-          <span style={{ color: '#69758a' }}>Administrator? </span>
           <button
-            onClick={() => navigate('/admin')}
-            style={{ background: 'none', border: 0, color: '#315bea', fontWeight: 600, cursor: 'pointer', padding: 0 }}
+            type="submit"
+            disabled={loading}
+            className="btn btn-primary"
+            style={{ padding: '13px', fontSize: 14.5, fontWeight: 700, marginTop: 8 }}
           >
-            {adminExists ? 'Go to Admin Portal' : 'First-Time Admin Setup'}
+            {loading ? 'AUTHENTICATING...' : 'ACCESS WORKSPACE'}
+            <ArrowRight size={16} />
           </button>
+        </form>
+
+        {/* Registration Trigger */}
+        <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+            Need an Institutional ID?{' '}
+            <button
+              type="button"
+              onClick={() => {
+                setShowRegisterModal(true);
+                setError('');
+              }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--neon-cyan)',
+                fontWeight: 700,
+                cursor: 'pointer',
+                textDecoration: 'underline'
+              }}
+            >
+              Register Account
+            </button>
+          </p>
         </div>
       </div>
-    </>
+
+      {/* Registration Modal */}
+      {showRegisterModal && (
+        <div className="modal-backdrop">
+          <div className="modal-card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 'var(--radius-sm)', background: 'rgba(0, 240, 255, 0.15)', border: '1px solid var(--neon-cyan)', color: 'var(--neon-cyan)', display: 'grid', placeItems: 'center' }}>
+                  <UserPlus size={18} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: 17, fontWeight: 800, color: '#fff' }}>
+                    {regSuccessUser ? 'Registration Completed!' : 'Create Institutional Account'}
+                  </h3>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
+                    {regSuccessUser ? 'Your official Institutional ID is ready' : 'Select role and fill your information'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowRegisterModal(false);
+                  setRegSuccessUser(null);
+                }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 20 }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {regSuccessUser ? (
+              <div style={{ textAlign: 'center', padding: '16px 0' }}>
+                <div style={{
+                  width: 60,
+                  height: 60,
+                  borderRadius: '50%',
+                  background: 'rgba(0, 255, 157, 0.15)',
+                  border: '1px solid var(--neon-emerald)',
+                  color: 'var(--neon-emerald)',
+                  display: 'grid',
+                  placeItems: 'center',
+                  margin: '0 auto 16px',
+                  boxShadow: '0 0 20px rgba(0, 255, 157, 0.35)'
+                }}>
+                  <CheckCircle2 size={36} />
+                </div>
+
+                <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 8, color: '#fff' }}>
+                  Welcome, {regSuccessUser.name}!
+                </h3>
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)', maxWidth: 400, margin: '0 auto 20px' }}>
+                  Your account has been registered. Use your generated Institutional ID to sign in.
+                </p>
+
+                <div style={{
+                  background: 'rgba(6, 12, 28, 0.8)',
+                  border: '1px dashed var(--neon-cyan)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '20px',
+                  marginBottom: 24,
+                  display: 'inline-flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 8,
+                  boxShadow: '0 0 20px rgba(0, 240, 255, 0.15)'
+                }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em' }}>
+                    YOUR INSTITUTIONAL ID
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 28, fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--neon-cyan)', letterSpacing: '0.05em', textShadow: '0 0 10px rgba(0,240,255,0.5)' }}>
+                      {regSuccessUser.institutionalId || (regSuccessUser.role === 'STUDENT' ? 'STU10001' : 'FAC10001')}
+                    </span>
+                    <button
+                      onClick={() => copyInstitutionalId(regSuccessUser.institutionalId)}
+                      className="btn btn-secondary btn-sm"
+                      style={{ padding: '6px 10px' }}
+                    >
+                      {copiedId ? <Check size={14} color="#00ff9d" /> : <Copy size={14} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <button
+                    onClick={() => {
+                      setShowRegisterModal(false);
+                      setRegSuccessUser(null);
+                      if (regSuccessUser.role === 'FACULTY') navigate('/faculty');
+                      else if (regSuccessUser.role === 'ADMIN') navigate('/admin');
+                      else navigate('/dashboard');
+                    }}
+                    className="btn btn-primary btn-lg"
+                    style={{ width: '100%' }}
+                  >
+                    ENTER WORKSPACE <ArrowRight size={16} />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {/* Role Selector */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, background: 'rgba(5, 11, 26, 0.8)', padding: 4, borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
+                  <button
+                    type="button"
+                    onClick={() => setRegType('STUDENT')}
+                    style={{
+                      padding: '8px 12px',
+                      borderRadius: 6,
+                      border: 'none',
+                      background: regType === 'STUDENT' ? 'rgba(0, 240, 255, 0.15)' : 'transparent',
+                      color: regType === 'STUDENT' ? 'var(--neon-cyan)' : 'var(--text-muted)',
+                      fontWeight: 700,
+                      fontSize: 13,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6
+                    }}
+                  >
+                    <Users size={15} /> Student
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRegType('FACULTY')}
+                    style={{
+                      padding: '8px 12px',
+                      borderRadius: 6,
+                      border: 'none',
+                      background: regType === 'FACULTY' ? 'rgba(168, 85, 247, 0.2)' : 'transparent',
+                      color: regType === 'FACULTY' ? 'var(--neon-violet)' : 'var(--text-muted)',
+                      fontWeight: 700,
+                      fontSize: 13,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6
+                    }}
+                  >
+                    <Briefcase size={15} /> Faculty Member
+                  </button>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Full Name</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. John Doe"
+                    value={regForm.name}
+                    onChange={(e) => setRegForm({ ...regForm, name: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Email</label>
+                  <input
+                    type="email"
+                    className="form-input"
+                    placeholder="user@college.edu"
+                    value={regForm.email}
+                    onChange={(e) => setRegForm({ ...regForm, email: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div className="form-group">
+                    <label className="form-label">Password</label>
+                    <input
+                      type="password"
+                      className="form-input"
+                      placeholder="••••••••"
+                      value={regForm.password}
+                      onChange={(e) => setRegForm({ ...regForm, password: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Confirm Password</label>
+                    <input
+                      type="password"
+                      className="form-input"
+                      placeholder="••••••••"
+                      value={regForm.confirmPassword}
+                      onChange={(e) => setRegForm({ ...regForm, confirmPassword: e.target.value })}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Department</label>
+                  <select
+                    className="form-select"
+                    value={regForm.department}
+                    onChange={(e) => setRegForm({ ...regForm, department: e.target.value })}
+                  >
+                    <option value="Computer Science & Engineering">Computer Science & Engineering</option>
+                    <option value="Electronics & Communication">Electronics & Communication</option>
+                    <option value="Information Technology">Information Technology</option>
+                    <option value="Artificial Intelligence & Data Science">Artificial Intelligence & Data Science</option>
+                    <option value="Mechanical Engineering">Mechanical Engineering</option>
+                  </select>
+                </div>
+
+                {regType === 'STUDENT' ? (
+                  <div className="form-group">
+                    <label className="form-label">Technical Skills</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="e.g. React, Java, Python, Docker"
+                      value={regForm.skills}
+                      onChange={(e) => setRegForm({ ...regForm, skills: e.target.value })}
+                    />
+                  </div>
+                ) : (
+                  <>
+                    <div className="form-group">
+                      <label className="form-label">Academic Designation</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        placeholder="e.g. Professor & HOD"
+                        value={regForm.designation}
+                        onChange={(e) => setRegForm({ ...regForm, designation: e.target.value })}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Research Specialization</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        placeholder="e.g. Machine Learning, Cloud Systems"
+                        value={regForm.specialization}
+                        onChange={(e) => setRegForm({ ...regForm, specialization: e.target.value })}
+                      />
+                    </div>
+                  </>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="btn btn-primary"
+                  style={{ padding: '13px', marginTop: 10 }}
+                >
+                  {loading ? 'REGISTERING...' : 'REGISTER & GET INSTITUTIONAL ID'}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

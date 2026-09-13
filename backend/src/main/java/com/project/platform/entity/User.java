@@ -8,20 +8,9 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 /**
- * ============================================================================
- *  PLACEHOLDER ENTITY - DO NOT TREAT AS FINAL
- * ============================================================================
- * Per team rules, User must NOT be duplicated. This class exists here only
- * because this module was built standalone (no shared repo was available to
- * inspect). Whoever owns the Auth/User module should REPLACE this file with
- * the real, canonical User entity, or (preferred) this file should simply be
- * DELETED once merged into the shared codebase and all references here
- * should point at the real entity instead.
- *
- * Field `accountStatus` is an ADDITION requested by the Admin module (needed
- * for "Manage Students & Faculty" — enable/suspend accounts). This field
- * requires TEAM APPROVAL before being added to the real shared User entity.
- * ============================================================================
+ * Core User entity for CollabNexus.
+ * Supports authentication, institutional ID generation (STUxxxxx / FACxxxxx / ADMxxxxx),
+ * and account status lifecycle.
  */
 @Entity
 @Table(name = "users")
@@ -36,6 +25,9 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "institutional_id", unique = true)
+    private String institutionalId;
+
     @Column(nullable = false)
     private String name;
 
@@ -49,7 +41,6 @@ public class User {
     @Column(nullable = false)
     private Role role;
 
-    // --- Field requested by Admin module (needs team approval) ---
     @Enumerated(EnumType.STRING)
     @Column(name = "account_status", nullable = false)
     @Builder.Default
@@ -66,3 +57,4 @@ public class User {
         }
     }
 }
+

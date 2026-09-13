@@ -12,5 +12,8 @@ public record UpdateProjectRequest(
 
     String requiredSkills,
 
-    ProjectStatus status
+    ProjectStatus status,
+
+    Integer maxMembers
 ) {}
+

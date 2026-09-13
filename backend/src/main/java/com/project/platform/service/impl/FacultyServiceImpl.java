@@ -125,6 +125,8 @@ public class FacultyServiceImpl implements FacultyService {
         return page.map(p -> {
             User creator = creatorMap.get(p.getCreatedBy());
             int memberCount = (int) projectMemberRepository.countByProjectId(p.getId());
+            int maxMembers = p.getMaxMembers() != null && p.getMaxMembers() > 0 ? p.getMaxMembers() : 4;
+            int availableSeats = Math.max(0, maxMembers - memberCount);
             return new ProjectSummaryResponse(
                     p.getId(),
                     p.getTitle(),
@@ -136,9 +138,12 @@ public class FacultyServiceImpl implements FacultyService {
                     creator != null ? creator.getEmail() : null,
                     p.getCreatedAt(),
                     p.getUpdatedAt(),
-                    memberCount
+                    memberCount,
+                    maxMembers,
+                    availableSeats
             );
         });
+
     }
 
     @Override
@@ -380,12 +385,20 @@ public class FacultyServiceImpl implements FacultyService {
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new ResourceNotFoundException("Project not found: " + projectId));
 
-        // Calculate weighted total score:
-        // Technical: 35%, Execution: 30%, Innovation: 20%, Presentation: 15%
-        double computedTotal = (request.getTechnicalScore() * 0.35)
-                + (request.getExecutionScore() * 0.30)
-                + (request.getInnovationScore() * 0.20)
-                + (request.getPresentationScore() * 0.15);
+        // Calculate total rubric score:
+        // When criteria are scored out of 25 each (max 100), compute direct sum.
+        // If criteria are scored on a 100-point scale, compute weighted score.
+        double tech = request.getTechnicalScore() != null ? request.getTechnicalScore() : 0.0;
+        double exec = request.getExecutionScore() != null ? request.getExecutionScore() : 0.0;
+        double innov = request.getInnovationScore() != null ? request.getInnovationScore() : 0.0;
+        double pres = request.getPresentationScore() != null ? request.getPresentationScore() : 0.0;
+
+        double computedTotal;
+        if (tech <= 25.0 && exec <= 25.0 && innov <= 25.0 && pres <= 25.0) {
+            computedTotal = tech + exec + innov + pres;
+        } else {
+            computedTotal = (tech * 0.35) + (exec * 0.30) + (innov * 0.20) + (pres * 0.15);
+        }
 
         BigDecimal roundedTotal = BigDecimal.valueOf(computedTotal).setScale(1, RoundingMode.HALF_UP);
         double totalScore = roundedTotal.doubleValue();
@@ -479,9 +492,9 @@ public class FacultyServiceImpl implements FacultyService {
     private String calculateGrade(double score) {
         if (score >= 90.0) return "A+";
         if (score >= 80.0) return "A";
-        if (score >= 70.0) return "B";
-        if (score >= 60.0) return "C";
-        if (score >= 50.0) return "D";
+        if (score >= 70.0) return "B+";
+        if (score >= 60.0) return "B";
+        if (score >= 50.0) return "C";
         return "F";
     }
 

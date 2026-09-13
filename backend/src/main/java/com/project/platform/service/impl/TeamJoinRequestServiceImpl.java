@@ -46,8 +46,14 @@ public class TeamJoinRequestServiceImpl implements TeamJoinRequestService {
         Project project = projectRepository.findById(projectId)
             .orElseThrow(() -> new ResourceNotFoundException("Project not found with id: " + projectId));
 
-        if (project.getStatus() != ProjectStatus.OPEN) {
-            throw new BadRequestException("This project is not open for new join requests (status: " + project.getStatus() + ").");
+        if (project.getStatus() == ProjectStatus.COMPLETED || project.getStatus() == ProjectStatus.REJECTED || project.getStatus() == ProjectStatus.DRAFT) {
+            throw new BadRequestException("This project is " + project.getStatus() + " and is no longer accepting new team join requests.");
+        }
+
+        long currentMembers = projectMemberRepository.countByProjectId(projectId);
+        int maxMembers = project.getMaxMembers() != null && project.getMaxMembers() > 0 ? project.getMaxMembers() : 4;
+        if (currentMembers >= maxMembers) {
+            throw new BadRequestException("This project has reached its maximum team capacity (" + maxMembers + " members).");
         }
 
         if (project.getCreatedBy().equals(studentId)) {
@@ -134,6 +140,12 @@ public class TeamJoinRequestServiceImpl implements TeamJoinRequestService {
         }
 
         if (request.status() == JoinRequestStatus.ACCEPTED) {
+            long currentMembers = projectMemberRepository.countByProjectId(projectId);
+            int maxMembers = project.getMaxMembers() != null && project.getMaxMembers() > 0 ? project.getMaxMembers() : 4;
+            if (currentMembers >= maxMembers) {
+                throw new BadRequestException("Cannot accept new members. Project team capacity (" + maxMembers + ") is full.");
+            }
+
             joinRequest.setStatus(JoinRequestStatus.ACCEPTED);
             joinRequest.setRespondedAt(LocalDateTime.now());
 
@@ -172,6 +184,7 @@ public class TeamJoinRequestServiceImpl implements TeamJoinRequestService {
         } else {
             throw new BadRequestException("Invalid response status. Must be ACCEPTED or REJECTED.");
         }
+
 
         TeamJoinRequest updated = teamJoinRequestRepository.save(joinRequest);
         return toResponse(updated, project.getTitle());

@@ -15,5 +15,8 @@ public record ProjectSummaryResponse(
     String creatorEmail,
     LocalDateTime createdAt,
     LocalDateTime updatedAt,
-    int memberCount
+    int memberCount,
+    int maxMembers,
+    int availableSeats
 ) {}
+

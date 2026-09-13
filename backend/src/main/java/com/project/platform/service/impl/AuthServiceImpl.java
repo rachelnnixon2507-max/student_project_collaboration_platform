@@ -21,6 +21,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
+
 @Service
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
@@ -30,6 +32,7 @@ public class AuthServiceImpl implements AuthService {
     private final FacultyProfileRepository facultyProfileRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final SecureRandom random = new SecureRandom();
 
     @Override
     public AdminStatusResponse checkAdminStatus() {
@@ -55,7 +58,10 @@ public class AuthServiceImpl implements AuthService {
             throw new DuplicateResourceException("User with email '" + request.email() + "' already exists.");
         }
 
+        String adminId = generateUniqueInstitutionalId("ADM");
+
         User admin = User.builder()
+            .institutionalId(adminId)
             .name(request.name().trim())
             .email(request.email().trim().toLowerCase())
             .password(passwordEncoder.encode(request.password()))
@@ -66,7 +72,7 @@ public class AuthServiceImpl implements AuthService {
         admin = userRepository.save(admin);
 
         String token = jwtUtil.generateToken(admin.getEmail(), admin.getId(), admin.getRole().name());
-        return new AuthResponse(token, admin.getId(), admin.getName(), admin.getEmail(), admin.getRole().name());
+        return new AuthResponse(token, admin.getId(), admin.getInstitutionalId(), admin.getName(), admin.getEmail(), admin.getRole().name());
     }
 
     @Override
@@ -81,7 +87,10 @@ public class AuthServiceImpl implements AuthService {
             throw new DuplicateResourceException("User with email '" + cleanEmail + "' already exists.");
         }
 
+        String studentId = generateUniqueInstitutionalId("STU");
+
         User student = User.builder()
+            .institutionalId(studentId)
             .name(request.name().trim())
             .email(cleanEmail)
             .password(passwordEncoder.encode(request.password()))
@@ -102,7 +111,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         String token = jwtUtil.generateToken(student.getEmail(), student.getId(), student.getRole().name());
-        return new AuthResponse(token, student.getId(), student.getName(), student.getEmail(), student.getRole().name());
+        return new AuthResponse(token, student.getId(), student.getInstitutionalId(), student.getName(), student.getEmail(), student.getRole().name());
     }
 
     @Override
@@ -117,7 +126,10 @@ public class AuthServiceImpl implements AuthService {
             throw new DuplicateResourceException("User with email '" + cleanEmail + "' already exists.");
         }
 
+        String facultyId = generateUniqueInstitutionalId("FAC");
+
         User faculty = User.builder()
+            .institutionalId(facultyId)
             .name(request.name().trim())
             .email(cleanEmail)
             .password(passwordEncoder.encode(request.password()))
@@ -138,7 +150,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         String token = jwtUtil.generateToken(faculty.getEmail(), faculty.getId(), faculty.getRole().name());
-        return new AuthResponse(token, faculty.getId(), faculty.getName(), faculty.getEmail(), faculty.getRole().name());
+        return new AuthResponse(token, faculty.getId(), faculty.getInstitutionalId(), faculty.getName(), faculty.getEmail(), faculty.getRole().name());
     }
 
     @Override
@@ -148,8 +160,8 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public AuthResponse login(LoginRequest request, String requiredRole) {
-        String cleanEmail = request.email().trim().toLowerCase();
-        User user = userRepository.findByEmail(cleanEmail)
+        String identifier = request.email().trim();
+        User user = userRepository.findByEmailOrInstitutionalId(identifier)
             .orElseThrow(() -> new BadCredentialsException("Invalid credentials"));
 
         if (!passwordEncoder.matches(request.password(), user.getPassword())) {
@@ -169,6 +181,16 @@ public class AuthServiceImpl implements AuthService {
         }
 
         String token = jwtUtil.generateToken(user.getEmail(), user.getId(), user.getRole().name());
-        return new AuthResponse(token, user.getId(), user.getName(), user.getEmail(), user.getRole().name());
+        return new AuthResponse(token, user.getId(), user.getInstitutionalId(), user.getName(), user.getEmail(), user.getRole().name());
+    }
+
+    private String generateUniqueInstitutionalId(String prefix) {
+        String id;
+        do {
+            int num = 10000 + random.nextInt(90000);
+            id = prefix + num;
+        } while (userRepository.existsByInstitutionalId(id));
+        return id;
     }
 }
+

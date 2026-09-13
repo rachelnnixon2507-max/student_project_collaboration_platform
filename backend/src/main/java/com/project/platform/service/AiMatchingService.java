@@ -1,6 +1,7 @@
 package com.project.platform.service;
 
 import com.project.platform.dto.request.AiMatchCustomRequest;
+import com.project.platform.dto.request.InviteCandidateRequest;
 import com.project.platform.dto.response.AiCandidateMatchResponse;
 import com.project.platform.dto.response.AiProjectMatchResponse;
 
@@ -17,4 +18,6 @@ public interface AiMatchingService {
     List<AiProjectMatchResponse> matchProjectsForStudent(Long studentId, Integer maxResults);
 
     List<AiCandidateMatchResponse> matchCustomSkills(AiMatchCustomRequest request);
+
+    void inviteCandidate(Long leaderId, InviteCandidateRequest request);
 }

@@ -14,5 +14,8 @@ public record CreateProjectRequest(
 
     String requiredSkills,
 
-    ProjectStatus status
+    ProjectStatus status,
+
+    Integer maxMembers
 ) {}
+

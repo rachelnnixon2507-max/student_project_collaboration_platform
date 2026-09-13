@@ -1,13 +1,12 @@
 package com.project.platform.dto.request;
 
-import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 
 public record AdminLoginRequest(
-    @NotBlank(message = "email is required")
-    @Email(message = "enter a valid email")
+    @NotBlank(message = "Email or Institutional ID is required")
     String email,
 
-    @NotBlank(message = "password is required")
+    @NotBlank(message = "Password is required")
     String password
 ) {}
+

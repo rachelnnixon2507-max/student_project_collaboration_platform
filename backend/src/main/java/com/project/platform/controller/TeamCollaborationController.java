@@ -1,6 +1,7 @@
 package com.project.platform.controller;
 
 import com.project.platform.dto.request.AiMatchCustomRequest;
+import com.project.platform.dto.request.InviteCandidateRequest;
 import com.project.platform.dto.response.AiCandidateMatchResponse;
 import com.project.platform.dto.response.AiProjectMatchResponse;
 import com.project.platform.dto.response.ApiResponse;
@@ -50,5 +51,15 @@ public class TeamCollaborationController {
     ) {
         List<AiCandidateMatchResponse> candidates = aiMatchingService.matchCustomSkills(request);
         return ApiResponse.ok(candidates);
+    }
+
+    @PostMapping("/invite-candidate")
+    public ApiResponse<String> inviteCandidateToProject(
+            @Valid @RequestBody InviteCandidateRequest request,
+            @AuthenticationPrincipal UserPrincipal principal
+    ) {
+        Long currentUserId = (principal != null) ? principal.getId() : 1L;
+        aiMatchingService.inviteCandidate(currentUserId, request);
+        return ApiResponse.ok("Invitation sent successfully!", "INVITED");
     }
 }

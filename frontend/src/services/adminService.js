@@ -1,5 +1,5 @@
-const TOKEN_KEY = 'platform_jwt_token';
-const USER_KEY = 'platform_jwt_user';
+const TOKEN_KEY = 'collabnexus_jwt_token';
+const USER_KEY = 'collabnexus_jwt_user';
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
 export function getToken() {
@@ -20,9 +20,13 @@ export function setAuth(token, user) {
   if (user) localStorage.setItem(USER_KEY, JSON.stringify(user));
 }
 
-export function logoutAdmin() {
+export function clearAuth() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+}
+
+export function logoutAdmin() {
+  clearAuth();
 }
 
 export function isAuthenticated() {
@@ -37,12 +41,25 @@ export function isAdminAuthenticated() {
   return Boolean(token && user && user.role === 'ADMIN');
 }
 
-async function authFetch(path, options = {}) {
+export function isFacultyAuthenticated() {
+  const token = getToken();
+  const user = getUser();
+  return Boolean(token && user && user.role === 'FACULTY');
+}
+
+export function isStudentAuthenticated() {
+  const token = getToken();
+  const user = getUser();
+  return Boolean(token && user && user.role === 'STUDENT');
+}
+
+export async function authFetch(path, options = {}) {
   const url = `${API_BASE}${path}`;
   const token = getToken();
 
+  const isFormData = options.body instanceof FormData;
   const headers = {
-    'Content-Type': 'application/json',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(options.headers || {}),
   };
 
@@ -57,12 +74,12 @@ async function authFetch(path, options = {}) {
       headers,
     });
   } catch (err) {
-    throw new Error('Cannot connect to Spring Boot backend at http://localhost:8080. Please ensure backend is running.');
+    throw new Error('Unable to connect to CollabNexus server at http://localhost:8080. Please ensure the backend is running.');
   }
 
   if (response.status === 401) {
-    logoutAdmin();
-    throw new Error('Session expired or unauthorized. Please log in again.');
+    clearAuth();
+    throw new Error('Session expired or invalid credentials. Please sign in again.');
   }
 
   if (response.status === 204) {
@@ -76,7 +93,7 @@ async function authFetch(path, options = {}) {
   }
 
   if (!response.ok) {
-    const errorMsg = body?.message || body?.error || `HTTP ${response.status} error`;
+    const errorMsg = body?.message || body?.error || `Request failed with status ${response.status}`;
     throw new Error(errorMsg);
   }
 
@@ -112,100 +129,86 @@ export async function setupAdmin({ name, email, password, confirmPassword }) {
   return data;
 }
 
-// 3. General Login (Student, Faculty, Admin)
-export async function loginUser(email, password) {
+// 3. Login (Dual ID/Email Support)
+export async function loginUser(emailOrId, password) {
   const url = `${API_BASE}/api/auth/login`;
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email: emailOrId, password }),
   });
   const body = await res.json();
   if (!res.ok) {
-    throw new Error(body?.message || body?.error || 'Login failed. Invalid credentials.');
+    throw new Error(body?.message || body?.error || 'Invalid credentials. Please check your Institutional ID or Email and Password.');
   }
   const data = body.data || body;
   setAuth(data.token, data);
   return data;
 }
 
-export async function loginStudent(email, password) {
+export async function loginStudent(emailOrId, password) {
   const url = `${API_BASE}/api/auth/student/login`;
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
-    const body = await res.json();
-    if (!res.ok) {
-      throw new Error(body?.message || body?.error || 'Login failed. Invalid credentials.');
-    }
-    const data = body.data || body;
-    setAuth(data.token, data);
-    return data;
-  } catch (err) {
-    // Graceful offline fallback for testing when backend is offline
-    const studentUser = {
-      token: 'mock-jwt-student-token-12345',
-      id: 1,
-      name: email.includes('@') ? email.split('@')[0] : 'Demo Student',
-      email: email,
-      role: 'STUDENT',
-    };
-    setAuth(studentUser.token, studentUser);
-    return studentUser;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: emailOrId, password }),
+  });
+  const body = await res.json();
+  if (!res.ok) {
+    throw new Error(body?.message || body?.error || 'Student login failed. Invalid Institutional ID / Email or Password.');
   }
+  const data = body.data || body;
+  setAuth(data.token, data);
+  return data;
 }
 
-export async function loginFaculty(email, password) {
+export async function loginFaculty(emailOrId, password) {
   const url = `${API_BASE}/api/auth/faculty/login`;
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email: emailOrId, password }),
   });
   const body = await res.json();
   if (!res.ok) {
-    throw new Error(body?.message || body?.error || 'Login failed. Invalid credentials.');
+    throw new Error(body?.message || body?.error || 'Faculty login failed. Invalid Institutional ID / Email or Password.');
   }
   const data = body.data || body;
   setAuth(data.token, data);
   return data;
 }
 
-// Legacy Admin Login helper
-export async function loginAdmin(email, password) {
-  return loginUser(email, password);
+export async function loginAdmin(emailOrId, password) {
+  const url = `${API_BASE}/api/auth/admin/login`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: emailOrId, password }),
+  });
+  const body = await res.json();
+  if (!res.ok) {
+    throw new Error(body?.message || body?.error || 'Admin login failed. Invalid credentials or insufficient permissions.');
+  }
+  const data = body.data || body;
+  setAuth(data.token, data);
+  return data;
 }
 
 // 4. Student Registration
 export async function registerStudent(studentData) {
   const url = `${API_BASE}/api/auth/register/student`;
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(studentData),
-    });
-    const body = await res.json();
-    if (!res.ok) {
-      throw new Error(body?.message || body?.error || 'Student registration failed.');
-    }
-    const data = body.data || body;
-    setAuth(data.token, data);
-    return data;
-  } catch (err) {
-    const studentUser = {
-      token: 'mock-jwt-student-token-' + Date.now(),
-      id: 1,
-      name: studentData.name,
-      email: studentData.email,
-      role: 'STUDENT',
-    };
-    setAuth(studentUser.token, studentUser);
-    return studentUser;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(studentData),
+  });
+  const body = await res.json();
+  if (!res.ok) {
+    throw new Error(body?.message || body?.error || 'Student registration failed.');
   }
+  const data = body.data || body;
+  setAuth(data.token, data);
+  return data;
 }
 
 // 5. Faculty Registration
@@ -225,7 +228,7 @@ export async function registerFaculty(facultyData) {
   return data;
 }
 
-// Manage Students & Faculty
+// 6. User Management (Admin)
 export async function fetchUsers(role) {
   const path = role ? `/api/admin/users?role=${role}` : `/api/admin/users`;
   return authFetch(path);
@@ -251,7 +254,7 @@ export async function deleteUser(userId) {
   });
 }
 
-// Roles & Permissions
+// 7. Roles & Permissions
 export async function fetchRolePermissions() {
   return authFetch('/api/admin/roles/permissions');
 }
@@ -263,8 +266,7 @@ export async function updateRolePermissions(role, permissions) {
   });
 }
 
-
-// Manage Projects
+// 8. Manage Projects (Admin)
 export async function fetchProjects(status) {
   const path = status ? `/api/admin/projects?status=${status}` : `/api/admin/projects`;
   return authFetch(path);
@@ -283,12 +285,12 @@ export async function deleteProject(projectId) {
   });
 }
 
-// Platform Analytics
+// 9. Platform Live Analytics
 export async function fetchAnalyticsLive() {
   return authFetch('/api/analytics/live');
 }
 
-// Announcements
+// 10. Announcements
 export async function fetchAnnouncements() {
   return authFetch('/api/announcements');
 }
@@ -306,12 +308,12 @@ export async function deleteAnnouncement(announcementId) {
   });
 }
 
-// Delayed / Inactive Projects
+// 11. Delayed / Flagged Projects
 export async function fetchFlaggedProjects() {
   return authFetch('/api/admin/projects/health/flagged');
 }
 
-// Rate & Review Team Members
+// 12. Peer Reviews
 export async function createTeamReview({ projectId, revieweeId, rating, comments }) {
   return authFetch('/api/reviews', {
     method: 'POST',
