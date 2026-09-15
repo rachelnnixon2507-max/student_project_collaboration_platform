@@ -2,6 +2,7 @@ package com.project.platform.controller;
 
 import com.project.platform.dto.request.AiMatchCustomRequest;
 import com.project.platform.dto.request.InviteCandidateRequest;
+import com.project.platform.dto.request.RespondInvitationRequest;
 import com.project.platform.dto.response.AiCandidateMatchResponse;
 import com.project.platform.dto.response.AiProjectMatchResponse;
 import com.project.platform.dto.response.ApiResponse;
@@ -61,5 +62,15 @@ public class TeamCollaborationController {
         Long currentUserId = (principal != null) ? principal.getId() : 1L;
         aiMatchingService.inviteCandidate(currentUserId, request);
         return ApiResponse.ok("Invitation sent successfully!", "INVITED");
+    }
+
+    @PostMapping("/respond-invitation")
+    public ApiResponse<String> respondToInvitation(
+            @Valid @RequestBody RespondInvitationRequest request,
+            @AuthenticationPrincipal UserPrincipal principal
+    ) {
+        Long currentUserId = (principal != null) ? principal.getId() : 1L;
+        aiMatchingService.respondToInvitation(currentUserId, request);
+        return ApiResponse.ok(request.accept() ? "Successfully joined team!" : "Invitation declined.", "SUCCESS");
     }
 }

@@ -10,5 +10,7 @@ public enum FileResourceType {
     DIAGRAM,
     LINK,
     DATASET,
+    VIDEO,
+    IMAGE,
     OTHER
 }

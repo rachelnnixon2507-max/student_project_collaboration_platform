@@ -48,8 +48,9 @@ public class ProjectServiceImpl implements ProjectService {
     @Override
     @Transactional
     public ProjectDetailResponse createProject(Long userId, CreateProjectRequest request) {
-        User user = userRepository.findById(userId)
-            .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+        if (!userRepository.existsById(userId)) {
+            throw new ResourceNotFoundException("User not found with id: " + userId);
+        }
 
         ProjectStatus initialStatus = request.status() != null ? request.status() : ProjectStatus.OPEN;
         int maxMembers = (request.maxMembers() != null && request.maxMembers() > 0) ? request.maxMembers() : 4;

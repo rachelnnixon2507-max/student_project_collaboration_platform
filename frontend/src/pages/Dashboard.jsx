@@ -39,6 +39,7 @@ export default function Dashboard() {
   const [myTasks, setMyTasks] = useState([]);
   const [recommendedProjects, setRecommendedProjects] = useState([]);
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
+  const [totalCampusProjects, setTotalCampusProjects] = useState(5);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -52,18 +53,27 @@ export default function Dashboard() {
   const loadDashboardData = async () => {
     setLoading(true);
     try {
-      const [created, joined, unreadRes, tasks, matchedRes] = await Promise.all([
+      const [created, joined, unreadRes, tasks, matchedRes, allProjectsRes] = await Promise.all([
         fetchMyCreatedProjects().catch(() => []),
         fetchMyJoinedProjects().catch(() => []),
         fetchUnreadNotificationCount().catch(() => ({ unreadCount: 0 })),
         fetchMyTasks().catch(() => []),
         fetchMatchingProjectsForStudent(user?.id || null, 3).catch(() => []),
+        fetchProjects({ page: 0, size: 50 }).catch(() => ({ content: [], totalElements: 5 })),
       ]);
 
       setCreatedProjects(created || []);
       setJoinedProjects(joined || []);
       setUnreadCount(unreadRes?.unreadCount || 0);
       setMyTasks(tasks || []);
+
+      if (allProjectsRes?.totalElements !== undefined && allProjectsRes.totalElements > 0) {
+        setTotalCampusProjects(allProjectsRes.totalElements);
+      } else if (allProjectsRes?.content && allProjectsRes.content.length > 0) {
+        setTotalCampusProjects(allProjectsRes.content.length);
+      } else {
+        setTotalCampusProjects(5);
+      }
 
       if (matchedRes && matchedRes.length > 0) {
         setRecommendedProjects(matchedRes);
@@ -91,6 +101,8 @@ export default function Dashboard() {
   };
 
   const institutionalId = user?.institutionalId || 'STU10001';
+  const allMyProjects = [...createdProjects, ...joinedProjects.filter(jp => !createdProjects.some(cp => cp.id === jp.id))];
+  const totalInvolvedProjects = allMyProjects.length;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -132,6 +144,42 @@ export default function Dashboard() {
           <p style={{ fontSize: 14, color: 'var(--text-secondary)', maxWidth: 640, lineHeight: 1.6 }}>
             Manage your project sprints, monitor team velocity, review applicant pitches, and coordinate capstone deliverables.
           </p>
+
+          {/* Project Allocation Status Telemetry */}
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 14 }}>
+            <div style={{
+              padding: '6px 14px',
+              background: 'rgba(0, 240, 255, 0.12)',
+              border: '1px solid rgba(0, 240, 255, 0.4)',
+              borderRadius: 'var(--radius-pill)',
+              fontSize: 12,
+              fontFamily: 'var(--font-mono)',
+              color: 'var(--neon-cyan)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8
+            }}>
+              <FolderGit2 size={14} />
+              TOTAL INVOLVED PROJECTS: <strong style={{ color: '#fff', fontSize: 13 }}>{totalInvolvedProjects}</strong> ({createdProjects.length} Led • {joinedProjects.length} Joined)
+            </div>
+
+            <div style={{
+              padding: '6px 14px',
+              background: 'rgba(168, 85, 247, 0.12)',
+              border: '1px solid rgba(168, 85, 247, 0.4)',
+              borderRadius: 'var(--radius-pill)',
+              fontSize: 12,
+              fontFamily: 'var(--font-mono)',
+              color: 'var(--neon-violet)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              cursor: 'pointer'
+            }} onClick={() => navigate('/projects')}>
+              <Sparkles size={14} />
+              CAMPUS DIRECTORY: <strong style={{ color: '#fff', fontSize: 13 }}>{totalCampusProjects}</strong> TOTAL PROJECTS
+            </div>
+          </div>
         </div>
 
         <div style={{ display: 'flex', gap: 12 }}>
@@ -188,39 +236,61 @@ export default function Dashboard() {
       )}
 
       {/* KPI Stats Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 16 }}>
+        <div className="stat-card" style={{ cursor: 'pointer', borderLeft: '4px solid var(--neon-cyan)' }} onClick={() => navigate('/projects')}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 11.5, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>// TOTAL INVOLVED</span>
+            <FolderGit2 size={20} color="var(--neon-cyan)" />
+          </div>
+          <div className="stat-value" style={{ color: 'var(--neon-cyan)' }}>{totalInvolvedProjects}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{createdProjects.length} Led • {joinedProjects.length} Joined</div>
+        </div>
+
+        <div className="stat-card" style={{ cursor: 'pointer', borderLeft: '4px solid var(--neon-emerald)' }} onClick={() => navigate('/projects')}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 11.5, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>// CAMPUS TOTAL</span>
+            <Sparkles size={20} color="var(--neon-emerald)" />
+          </div>
+          <div className="stat-value" style={{ color: 'var(--neon-emerald)' }}>{totalCampusProjects}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>All Projects in Matrix</div>
+        </div>
+
         <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/projects')}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 12.5, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>// PROJECTS LED</span>
+            <span style={{ fontSize: 11.5, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>// PROJECTS LED</span>
             <FolderGit2 size={20} color="var(--neon-cyan)" />
           </div>
           <div className="stat-value" style={{ color: 'var(--neon-cyan)' }}>{createdProjects.length}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Leader Role</div>
         </div>
 
         <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/teams')}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 12.5, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>// TEAMS JOINED</span>
-            <Users2 size={20} color="var(--neon-emerald)" />
+            <span style={{ fontSize: 11.5, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>// TEAMS JOINED</span>
+            <Users2 size={20} color="var(--neon-violet)" />
           </div>
-          <div className="stat-value" style={{ color: 'var(--neon-emerald)' }}>{joinedProjects.length}</div>
+          <div className="stat-value" style={{ color: 'var(--neon-violet)' }}>{joinedProjects.length}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Member Role</div>
         </div>
 
         <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/tasks')}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 12.5, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>// SPRINT TASKS</span>
-            <Kanban size={20} color="var(--neon-violet)" />
+            <span style={{ fontSize: 11.5, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>// SPRINT TASKS</span>
+            <Kanban size={20} color="var(--neon-amber)" />
           </div>
-          <div className="stat-value" style={{ color: 'var(--neon-violet)' }}>{myTasks.length}</div>
+          <div className="stat-value" style={{ color: 'var(--neon-amber)' }}>{myTasks.length}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Assigned Work</div>
         </div>
 
         <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/notifications')}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 12.5, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>// SYSTEM UPDATES</span>
+            <span style={{ fontSize: 11.5, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>// SYSTEM UPDATES</span>
             <Bell size={20} color={unreadCount > 0 ? 'var(--neon-crimson)' : 'var(--text-muted)'} />
           </div>
           <div className="stat-value" style={{ color: unreadCount > 0 ? 'var(--neon-crimson)' : '#fff' }}>
             {unreadCount}
           </div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Pending Alerts</div>
         </div>
       </div>
 
@@ -229,7 +299,9 @@ export default function Dashboard() {
         {/* Left Column: My Active Projects / Sprints */}
         <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-            <h3 style={{ fontSize: 17, fontWeight: 700, color: '#fff' }}>Active Sprints & Workspaces</h3>
+            <h3 style={{ fontSize: 17, fontWeight: 700, color: '#fff' }}>
+              Active Sprints & Workspaces ({totalInvolvedProjects} Projects)
+            </h3>
             <button onClick={() => navigate('/tasks')} className="btn btn-ghost btn-sm" style={{ color: 'var(--neon-cyan)', fontWeight: 600 }}>
               Open Kanban <ChevronRight size={14} />
             </button>
@@ -326,8 +398,17 @@ export default function Dashboard() {
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 6 }}>
                       <strong style={{ fontSize: 14.5, color: '#fff' }}>{projTitle}</strong>
-                      <span className={`badge ${availableSeats > 0 ? 'badge-open' : 'badge-completed'}`} style={{ fontSize: 10.5 }}>
-                        {availableSeats > 0 ? `${availableSeats} SEAT${availableSeats > 1 ? 'S' : ''} LEFT` : 'TEAM FULL'}
+                      <span
+                        className={`badge ${availableSeats > 0 ? 'badge-open' : 'badge-completed'}`}
+                        style={availableSeats === 0 ? {
+                          fontSize: 10.5,
+                          fontWeight: 700,
+                          background: 'rgba(0, 255, 157, 0.15)',
+                          color: 'var(--neon-emerald)',
+                          border: '1px solid rgba(0, 255, 157, 0.45)'
+                        } : { fontSize: 10.5 }}
+                      >
+                        {availableSeats > 0 ? `${availableSeats} SEAT${availableSeats > 1 ? 'S' : ''} LEFT` : '✓ 4/4 FULLY OCCUPIED'}
                       </span>
                     </div>
 

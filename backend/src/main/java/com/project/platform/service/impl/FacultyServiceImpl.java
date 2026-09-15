@@ -276,8 +276,9 @@ public class FacultyServiceImpl implements FacultyService {
     @Override
     @Transactional
     public FacultyFeedbackResponse giveFeedback(Long projectId, Long facultyId, CreateFacultyFeedbackRequest request) {
-        Project project = projectRepository.findById(projectId)
-                .orElseThrow(() -> new ResourceNotFoundException("Project not found: " + projectId));
+        if (!projectRepository.existsById(projectId)) {
+            throw new ResourceNotFoundException("Project not found: " + projectId);
+        }
 
         String taskTitle = null;
         if (request.getTaskId() != null) {
@@ -382,8 +383,9 @@ public class FacultyServiceImpl implements FacultyService {
     @Override
     @Transactional
     public ProjectEvaluationResponse evaluateProject(Long projectId, Long facultyId, CreateProjectEvaluationRequest request) {
-        Project project = projectRepository.findById(projectId)
-                .orElseThrow(() -> new ResourceNotFoundException("Project not found: " + projectId));
+        if (!projectRepository.existsById(projectId)) {
+            throw new ResourceNotFoundException("Project not found: " + projectId);
+        }
 
         // Calculate total rubric score:
         // When criteria are scored out of 25 each (max 100), compute direct sum.

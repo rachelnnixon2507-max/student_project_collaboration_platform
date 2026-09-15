@@ -289,15 +289,55 @@ export default function Projects() {
     }
   };
 
+  const totalProjectsCount = projects.length;
+  const fullProjectsCount = projects.filter(p => (p.memberCount || 1) >= (p.maxMembers || 4)).length;
+  const recruitingProjectsCount = projects.filter(p => (p.memberCount || 1) < (p.maxMembers || 4)).length;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       {/* Header & Pitch Action */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 800 }}>Campus Project Directory</h1>
-          <p style={{ fontSize: 13.5, color: 'var(--text-muted)' }}>
+          <p style={{ fontSize: 13.5, color: 'var(--text-muted)', marginBottom: 8 }}>
             Discover open student projects seeking teammates with your skills, or pitch your own idea.
           </p>
+
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <span style={{
+              padding: '3px 10px',
+              background: 'rgba(0, 240, 255, 0.12)',
+              border: '1px solid rgba(0, 240, 255, 0.35)',
+              borderRadius: 'var(--radius-pill)',
+              fontSize: 12,
+              fontFamily: 'var(--font-mono)',
+              color: 'var(--neon-cyan)'
+            }}>
+              TOTAL: <strong style={{ color: '#fff' }}>{totalProjectsCount}</strong> PROJECTS
+            </span>
+            <span style={{
+              padding: '3px 10px',
+              background: 'rgba(0, 255, 157, 0.12)',
+              border: '1px solid rgba(0, 255, 157, 0.35)',
+              borderRadius: 'var(--radius-pill)',
+              fontSize: 12,
+              fontFamily: 'var(--font-mono)',
+              color: 'var(--neon-emerald)'
+            }}>
+              <strong style={{ color: '#fff' }}>{fullProjectsCount}</strong> FULL (4/4) TEAMS
+            </span>
+            <span style={{
+              padding: '3px 10px',
+              background: 'rgba(245, 158, 11, 0.12)',
+              border: '1px solid rgba(245, 158, 11, 0.35)',
+              borderRadius: 'var(--radius-pill)',
+              fontSize: 12,
+              fontFamily: 'var(--font-mono)',
+              color: 'var(--neon-amber)'
+            }}>
+              <strong style={{ color: '#fff' }}>{recruitingProjectsCount}</strong> RECRUITING TEAMS
+            </span>
+          </div>
         </div>
 
         <button
@@ -422,8 +462,16 @@ export default function Projects() {
                       {proj.status?.replace('_', ' ')}
                     </span>
 
-                    <span className={`badge ${availableSeats > 0 ? 'badge-seats' : 'badge-seats-full'}`}>
-                      {availableSeats > 0 ? `${memberCount}/${maxMembers} members (${availableSeats} seat${availableSeats > 1 ? 's' : ''} open)` : `${memberCount}/${maxMembers} (Full)`}
+                    <span
+                      className={`badge ${availableSeats > 0 ? 'badge-seats' : 'badge-seats-full'}`}
+                      style={availableSeats === 0 ? {
+                        background: 'rgba(0, 255, 157, 0.15)',
+                        color: 'var(--neon-emerald)',
+                        border: '1px solid rgba(0, 255, 157, 0.45)',
+                        fontWeight: 700
+                      } : {}}
+                    >
+                      {availableSeats > 0 ? `${memberCount}/${maxMembers} members (${availableSeats} seat${availableSeats > 1 ? 's' : ''} open)` : `✓ 4/4 FULLY OCCUPIED`}
                     </span>
                   </div>
 
@@ -763,7 +811,7 @@ export default function Projects() {
                     className="btn btn-primary btn-sm"
                   >
                     {(activeProject.availableSeats !== undefined && activeProject.availableSeats <= 0) || (activeProject.memberCount >= (activeProject.maxMembers || 4))
-                      ? 'Team Capacity Reached'
+                      ? 'Team Capacity Reached (Fully Occupied - 4/4)'
                       : 'Request to Join Team'}
                   </button>
                 )}

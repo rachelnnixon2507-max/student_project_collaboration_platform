@@ -2,6 +2,7 @@ package com.project.platform.service.impl;
 
 import com.project.platform.dto.request.AiMatchCustomRequest;
 import com.project.platform.dto.request.InviteCandidateRequest;
+import com.project.platform.dto.request.RespondInvitationRequest;
 import com.project.platform.dto.request.SendMessageRequest;
 import com.project.platform.dto.response.AiCandidateMatchResponse;
 import com.project.platform.dto.response.AiProjectMatchResponse;
@@ -9,7 +10,9 @@ import com.project.platform.entity.Project;
 import com.project.platform.entity.ProjectMember;
 import com.project.platform.entity.StudentProfile;
 import com.project.platform.entity.User;
+import com.project.platform.entity.TeamJoinRequest;
 import com.project.platform.entity.enums.CompatibilityLevel;
+import com.project.platform.entity.enums.JoinRequestStatus;
 import com.project.platform.entity.enums.MessageType;
 import com.project.platform.entity.enums.NotificationType;
 import com.project.platform.entity.enums.ProjectStatus;
@@ -18,6 +21,7 @@ import com.project.platform.exception.ResourceNotFoundException;
 import com.project.platform.repository.ProjectMemberRepository;
 import com.project.platform.repository.ProjectRepository;
 import com.project.platform.repository.StudentProfileRepository;
+import com.project.platform.repository.TeamJoinRequestRepository;
 import com.project.platform.repository.UserRepository;
 import com.project.platform.service.AiMatchingService;
 import com.project.platform.service.MessageService;
@@ -40,6 +44,7 @@ public class AiMatchingServiceImpl implements AiMatchingService {
 
     private final ProjectRepository projectRepository;
     private final ProjectMemberRepository projectMemberRepository;
+    private final TeamJoinRequestRepository teamJoinRequestRepository;
     private final UserRepository userRepository;
     private final StudentProfileRepository studentProfileRepository;
     private final NotificationService notificationService;
@@ -63,15 +68,11 @@ public class AiMatchingServiceImpl implements AiMatchingService {
             throw new IllegalArgumentException(candidate.getName() + " is already a member of this project.");
         }
 
-        String note = (request.message() != null && !request.message().isBlank()) 
-                ? " Note: \"" + request.message().trim() + "\"" 
-                : "";
-
-        // 1. In-App Notification to candidate
+        // 1. System notification to candidate
         notificationService.createNotification(
                 candidate.getId(),
                 "🎯 Team Invitation: " + project.getTitle(),
-                leader.getName() + " invited you to join team for project \"" + project.getTitle() + "\" based on your skill match." + note,
+                leader.getName() + " invited you to join team for project \"" + project.getTitle() + "\" based on your skill match." + (request.message() != null && !request.message().isBlank() ? " Note: \"" + request.message().trim() + "\"" : ""),
                 NotificationType.JOIN_REQUEST,
                 project.getId(),
                 "PROJECT"
@@ -85,6 +86,85 @@ public class AiMatchingServiceImpl implements AiMatchingService {
                     leaderId
             );
         } catch (Exception ignored) {}
+    }
+
+    @Override
+    @Transactional
+    public void respondToInvitation(Long studentId, RespondInvitationRequest request) {
+        Project project = projectRepository.findById(request.projectId())
+                .orElseThrow(() -> new ResourceNotFoundException("Project not found with id: " + request.projectId()));
+
+        User student = userRepository.findById(studentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Student not found with id: " + studentId));
+
+        User leader = userRepository.findById(project.getCreatedBy()).orElse(null);
+
+        if (request.accept()) {
+            int maxMembers = (project.getMaxMembers() != null && project.getMaxMembers() > 0) ? project.getMaxMembers() : 4;
+            long currentMembers = projectMemberRepository.countByProjectId(project.getId());
+            if (currentMembers >= maxMembers) {
+                throw new IllegalArgumentException("Project has reached maximum team capacity (" + maxMembers + " members).");
+            }
+
+            // Create or update a pending join request so the inviter/leader can review and confirm admission
+            if (!teamJoinRequestRepository.existsByProjectIdAndStudentIdAndStatus(project.getId(), student.getId(), JoinRequestStatus.PENDING)
+                    && !projectMemberRepository.existsByProjectIdAndStudentId(project.getId(), student.getId())) {
+                TeamJoinRequest joinRequest = TeamJoinRequest.builder()
+                        .projectId(project.getId())
+                        .studentId(student.getId())
+                        .message("Yes, thank you for the invitation! I am interested to join your team for \"" + project.getTitle() + "\"." + (request.message() != null && !request.message().isBlank() ? " Note: " + request.message().trim() : ""))
+                        .status(JoinRequestStatus.PENDING)
+                        .build();
+                teamJoinRequestRepository.save(joinRequest);
+            }
+
+            if (leader != null) {
+                // Send high-priority JOIN_REQUEST notification to the leader for final confirmation
+                notificationService.createNotification(
+                        leader.getId(),
+                        "New Team Join Request: " + project.getTitle(),
+                        student.getName() + " accepted your team invitation and requested to join \"" + project.getTitle() + "\". Please review and confirm team admission.",
+                        NotificationType.JOIN_REQUEST,
+                        project.getId(),
+                        "PROJECT"
+                );
+
+                String acceptMsg = "🤝 [INVITATION ACCEPTED] Yes, thank you for the invitation! I am interested and excited to join the team for \"" 
+                        + project.getTitle() + "\". My request is submitted for your confirmation." + (request.message() != null && !request.message().isBlank() ? " Note: " + request.message().trim() : "");
+                try {
+                    messageService.sendMessage(
+                            new SendMessageRequest(null, leader.getId(), acceptMsg, MessageType.TEXT),
+                            studentId
+                    );
+                } catch (Exception ignored) {}
+            }
+        } else {
+            if (leader != null) {
+                notificationService.createNotification(
+                        leader.getId(),
+                        "Invitation Declined: " + project.getTitle(),
+                        student.getName() + " declined the team invitation for \"" + project.getTitle() + "\".",
+                        NotificationType.JOIN_REJECTED,
+                        project.getId(),
+                        "PROJECT"
+                );
+
+                String declineMsg = "👋 [INVITATION DECLINED] No, thank you for reaching out for \"" 
+                        + project.getTitle() + "\". Now I am working on another project." + (request.message() != null && !request.message().isBlank() ? " Note: " + request.message().trim() : "");
+                try {
+                    messageService.sendMessage(
+                            new SendMessageRequest(null, leader.getId(), declineMsg, MessageType.TEXT),
+                            studentId
+                    );
+                } catch (Exception ignored) {}
+            }
+        }
+
+        if (request.notificationId() != null) {
+            try {
+                notificationService.markAsRead(request.notificationId(), studentId);
+            } catch (Exception ignored) {}
+        }
     }
 
     @Override
@@ -154,11 +234,10 @@ public class AiMatchingServiceImpl implements AiMatchingService {
 
     @Override
     public List<AiProjectMatchResponse> matchProjectsForStudent(Long studentId, Integer maxResults) {
-        User student = userRepository.findById(studentId)
+        userRepository.findById(studentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Student not found with id: " + studentId));
 
         StudentProfile profile = studentProfileRepository.findByUserId(studentId).orElse(null);
-        List<String> studentSkills = parseSkills(profile != null ? profile.getSkills() : "");
 
         // Projects student is already part of
         Set<Long> joinedProjectIds = projectMemberRepository.findByStudentId(studentId).stream()

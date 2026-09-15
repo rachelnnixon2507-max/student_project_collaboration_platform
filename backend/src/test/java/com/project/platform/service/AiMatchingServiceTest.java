@@ -4,16 +4,15 @@ import com.project.platform.dto.request.AiMatchCustomRequest;
 import com.project.platform.dto.response.AiCandidateMatchResponse;
 import com.project.platform.dto.response.AiProjectMatchResponse;
 import com.project.platform.entity.Project;
-import com.project.platform.entity.ProjectMember;
 import com.project.platform.entity.StudentProfile;
 import com.project.platform.entity.User;
 import com.project.platform.entity.enums.CompatibilityLevel;
-import com.project.platform.entity.enums.ProjectMemberRole;
 import com.project.platform.entity.enums.ProjectStatus;
 import com.project.platform.entity.enums.Role;
 import com.project.platform.repository.ProjectMemberRepository;
 import com.project.platform.repository.ProjectRepository;
 import com.project.platform.repository.StudentProfileRepository;
+import com.project.platform.repository.TeamJoinRequestRepository;
 import com.project.platform.repository.UserRepository;
 import com.project.platform.service.impl.AiMatchingServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,7 +28,6 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -42,10 +40,19 @@ class AiMatchingServiceTest {
     private ProjectMemberRepository projectMemberRepository;
 
     @Mock
+    private TeamJoinRequestRepository teamJoinRequestRepository;
+
+    @Mock
     private UserRepository userRepository;
 
     @Mock
     private StudentProfileRepository studentProfileRepository;
+
+    @Mock
+    private NotificationService notificationService;
+
+    @Mock
+    private MessageService messageService;
 
     @InjectMocks
     private AiMatchingServiceImpl aiMatchingService;

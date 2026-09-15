@@ -4,8 +4,6 @@ import com.project.platform.dto.request.UpdateStudentProfileRequest;
 import com.project.platform.dto.response.StudentProfileResponse;
 import com.project.platform.entity.StudentProfile;
 import com.project.platform.entity.User;
-import com.project.platform.entity.enums.Role;
-import com.project.platform.exception.BadRequestException;
 import com.project.platform.exception.ResourceNotFoundException;
 import com.project.platform.repository.StudentProfileRepository;
 import com.project.platform.repository.UserRepository;

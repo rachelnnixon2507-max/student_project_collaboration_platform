@@ -1,245 +1,467 @@
-# Member 4 Module — Admin & System
+# 🎓 Student Project Collaboration Platform (CollabNexus)
 
-Student Project Collaboration Platform — Full-stack module (Spring Boot backend & React Vite frontend) implementing:
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4.3-brightgreen?logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
+[![React](https://img.shields.io/badge/React-18-blue?logo=react&logoColor=white)](https://react.dev/)
+[![Vite](https://img.shields.io/badge/Vite-8.2-purple?logo=vite&logoColor=white)](https://vitejs.dev/)
+[![MySQL](https://img.shields.io/badge/MySQL-8.0-orange?logo=mysql&logoColor=white)](https://www.mysql.com/)
+[![Java](https://img.shields.io/badge/Java-17-red?logo=openjdk&logoColor=white)](https://openjdk.org/)
+[![JWT](https://img.shields.io/badge/Auth-JWT%20Stateless-yellow?logo=jsonwebtokens&logoColor=white)](https://jwt.io/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
-1. **Manage Students & Faculty**: View list, view details, suspend/activate accounts, delete user records.
-2. **Manage Projects**: View all projects, inspect details, force update project status (e.g. IN_PROGRESS, COMPLETED, ARCHIVED), delete projects.
-3. **Manage Roles & Permissions**: Dynamic permission matrix for roles (STUDENT, FACULTY, ADMIN), assign user roles, update role permissions.
-4. **Platform Analytics**: Real-time metrics (active users, total projects, completed tasks, review averages) and snapshot history.
-5. **Send Announcements**: System-wide notifications broadcasted by scope (ALL, STUDENTS, FACULTY, PROJECT) or target project.
-6. **Detect Delayed/Inactive Projects**: Flag projects with overdue tasks or inactive periods to trigger admin interventions.
-7. **Rate & Review Team Members**: Peer reviews and ratings for team collaboration with computed user score summaries.
-
-> **IMPORTANT — read before merging into the shared repo:** this module was
-> built **standalone**, without access to the team's actual shared codebase
-> (no repo was provided to inspect). To keep it compilable and runnable on
-> its own, it includes placeholder versions of entities/tables owned by
-> other members (`User`, `StudentProfile`, `FacultyProfile`, `Project`,
-> `ProjectMember`, `Task`, `ProjectProgress`). **Per team rule #8, these must
-> NOT be merged in as-is if equivalents already exist.** See "Integration
-> steps" below.
+> **A Full-Stack Academic Collaboration, Team Formation, Sprint Management, and Mentorship Platform for Engineering Colleges.**
 
 ---
 
-## 1. Prerequisites & Prerequisites Setup
+## 📌 Overview
 
-- **Java JDK**: Version 17 (Required by Spring Boot 3.3.x)
-- **Apache Maven**: Version 3.8+
-- **Node.js**: Version 18+ & npm
-- **Database**: MySQL 8.x (configured in `application.yml` or using H2/MySQL dev database)
+**CollabNexus (Student Project Collaboration Platform)** is a full-stack web application designed to facilitate academic project collaboration between students, team leaders, faculty mentors, and department administrators.
 
-### Java 17 Setup (macOS)
-If your system defaults to Java 25 or Java 26, switch `JAVA_HOME` to Java 17 before building:
-```bash
-export JAVA_HOME=$(/usr/libexec/java_home -v 17)
-java -version  # Should display 17.x
+The platform provides a centralized environment for student portfolio discovery, smart skill-based team matching, agile Kanban sprint workspaces, structured multi-criteria faculty rubric evaluations, and academic governance.
+
+---
+
+## 👥 Project Modules & Team Contributions
+
+The platform was engineered as a collaborative group project partitioned into four interconnected modules:
+
+### 👤 Member 1 – Student Profile & Projects *(Salwa)*
+- 👤 **Student Profile**: Comprehensive academic profile management with department, verified technical skills, bio, GitHub, and LinkedIn links.
+- 💡 **Post Projects**: Publish new project proposals with title, description, required skills, and configurable team member limits (2–10 members).
+- 🔎 **Search Projects**: Filter campus project directory by title keyword, required technical stack, and recruitment status.
+- 🤝 **Request / Join Teams**: Submit applications with personalized pitch notes to join recruiting project teams.
+- 🔔 **Notifications**: Actionable notification stream for join request status updates, task alerts, and system notices.
+> **Total: 5 Features**
+
+---
+
+### 👨‍💻 Member 2 – Team Collaboration *(Shibla)*
+- ⭐ **AI Smart Team Matching**: Rule-based skill compatibility scoring matching student candidate skills with project requirements.
+- 📈 **Project Progress Tracking**: Automated weighted project completion percentage calculation (`0–100%`) rolled up from sprint tasks.
+- ✅ **Task Creation & Assignment**: 3-stage agile Kanban sprint board (`TODO`, `IN_PROGRESS`, `COMPLETED`) with task assignment and due dates.
+- 💬 **Team Chat & Direct Messaging**: Project workspace discussion rooms and 1-on-1 direct messaging.
+- 📁 **File & Resource Sharing**: Multipart document/diagram uploads and external Git repository links.
+> **Total: 5 Features**
+
+---
+
+### 👨‍🏫 Member 3 – Faculty Module *(Jasil)*
+- 👤 **Faculty Profile**: Faculty profile with academic department, designation, and research specializations.
+- 🔎 **Browse Student Projects**: Search and review all student project submissions across college departments.
+- 📈 **Monitor Project Progress**: Real-time visibility into project sprint velocity, milestone progress, and member task contributions.
+- 💬 **Give Feedback**: Provide qualitative mentorship review notes and 1–5 star ratings.
+- ⭐ **Evaluate / Approve Projects**: Interactive 5-criterion rubric scoring (Scope, Technical, Execution, Presentation, Innovation -> Grade) and formal milestone sign-offs.
+> **Total: 5 Features**
+
+---
+
+### 👨‍💼 Member 4 – Admin & System *(Rachel)*
+- 👤 **Manage Students & Faculty**: User directory with institutional ID search (`STU...`/`FAC...`/`ADM...`) and account status toggles (`ACTIVE`, `SUSPENDED`).
+- 📂 **Manage Projects**: Moderate all campus project records, inspect rosters, update project statuses, and maintain platform hygiene.
+- 🔐 **Manage Roles & Permissions**: Dynamic permission matrix across `STUDENT`, `FACULTY`, and `ADMIN` roles.
+- 📊 **Platform Analytics**: Real-time telemetry dashboard (active users, total projects, completed tasks, review rating averages).
+- 📢 **Send Announcements**: System broadcaster with targeted audience scopes (`ALL`, `STUDENTS`, `FACULTY`, `PROJECT`).
+- ⚠️ **Detect Delayed / Inactive Projects**: Automated health radar flagging overdue sprint tasks and dormant project workspaces.
+- ⭐ **Rate & Review Team Members**: 360-degree peer reviews and teammate ratings for collaboration quality.
+> **Total: 7 Features**
+
+---
+
+## 🚨 Problem Statement
+
+In academic institutions, student project collaboration often faces practical challenges:
+
+1. **Departmental Silos**: Students find it difficult to discover peers with complementary skills across different departments (e.g., Computer Science, Electronics, and Mechanical Engineering).
+2. **Unstructured Team Formation**: Team recruitment is commonly handled via informal chat groups without clear visibility into project capacity, skill requirements, or applicant profiles.
+3. **Task Tracking Gaps**: Milestone progress and task distribution are often undocumented, leading to unequal workload distribution and delayed submissions.
+4. **Subjective Evaluation**: Faculty mentors lack continuous visibility into sprint velocity and must grade final projects without standardized, transparent rubrics.
+5. **Lack of Administrative Telemetry**: Department coordinators lack a centralized view to monitor project health, detect inactive teams, and broadcast campus announcements.
+
+---
+
+## 💡 Solution
+
+**CollabNexus** resolves these challenges by providing a structured academic workflow:
+
+- **Smart Skill Matching**: A rule-based scoring algorithm that matches student profiles with open project requirements.
+- **Capacity-Controlled Team Formation**: Team creation with strict seat limits (2–10 members), join request approvals, and leader role assignments.
+- **Sprint Workspace & Kanban Board**: 3-stage task tracking (`TODO`, `IN_PROGRESS`, `COMPLETED`), automatic progress rollups, and file/repository sharing.
+- **Standardized Faculty Evaluation**: A 5-criterion rubric scoring system (Scope, Technical, Execution, Presentation, Innovation) with automatic letter-grade computation.
+- **Institutional Governance**: Role-based access control (RBAC), institutional ID management (`STU...`, `FAC...`, `ADM...`), and delayed sprint detection.
+
+---
+
+## 🛠️ Technology Stack
+
+| Layer | Technology | Version | Purpose |
+| :--- | :--- | :--- | :--- |
+| **Frontend** | React | 18.x | Single-Page Application (SPA) framework |
+| | Vite | 8.x | Frontend build tool and development server |
+| | React Router DOM | 6.x | Client-side routing and protected routes |
+| | Lucide React | Latest | Modern UI icon library |
+| | CSS3 Design Tokens | — | Custom responsive styling system |
+| **Backend** | Java | 17 LTS | Core backend programming language |
+| | Spring Boot | 3.4.3 | REST API framework and dependency injection |
+| | Spring Security | 6.x | Authentication, JWT filtering, and RBAC |
+| | Spring Data JPA | 3.x | ORM and database abstraction layer |
+| | Hibernate | 6.x | JPA entity lifecycle and relational mapping |
+| | JJWT (io.jsonwebtoken)| 0.11.5 | JSON Web Token signing and parsing |
+| | Lombok | 1.18.48 | Boilerplate code reduction |
+| **Database** | MySQL | 8.0+ | Primary relational database |
+| | H2 Database | 2.x | In-memory database for automated testing |
+| **Build & Tooling**| Apache Maven | 3.8+ | Backend build and dependency management |
+| | Node.js & npm | 18+ / 9+ | Frontend runtime and package management |
+
+---
+
+## 🏗️ Architecture
+
+```mermaid
+graph TD
+    subgraph Client ["Client Layer (React + Vite SPA)"]
+        UI[Interactive UI Components]
+        Router[React Router DOM]
+        Services[API Service Layer]
+        UI --> Router --> Services
+    end
+
+    subgraph Security ["Security Layer"]
+        CORS[CORS Filter]
+        JWT[JwtAuthenticationFilter]
+        AuthMgr[ProviderManager / DaoAuthenticationProvider]
+        Services -->|HTTP + Bearer JWT| CORS
+        CORS --> JWT --> AuthMgr
+    end
+
+    subgraph Backend ["Application Layer (Spring Boot 3.4.3)"]
+        Controllers[REST Controllers]
+        ServiceLayer[Service Interfaces & Implementations]
+        MatchEngine[Smart Skill Matching Algorithm]
+        Repos[Spring Data JPA Repositories]
+        
+        AuthMgr --> Controllers
+        Controllers --> ServiceLayer
+        ServiceLayer --> MatchEngine
+        ServiceLayer --> Repos
+    end
+
+    subgraph Data ["Data Storage Layer"]
+        MySQL[(MySQL 8.0 Relational DB)]
+        Uploads[Local Upload Directory]
+        Repos --> MySQL
+        ServiceLayer --> Uploads
+    end
 ```
 
 ---
 
-## 2. Quick Start Guide
-
-### Running Backend (Spring Boot)
-```bash
-cd backend
-export JAVA_HOME=$(/usr/libexec/java_home -v 17)
-mvn clean spring-boot:run
-```
-Backend server will start at: `http://localhost:8080`
-
-### Running Frontend (React + Vite)
-```bash
-cd frontend
-npm install
-npm run dev
-```
-Frontend development server will start at: `http://localhost:5173`
-
----
-
-## 3. Directory & File Structure
+## 📁 Folder Structure
 
 ```
-.
-├── pom.xml                                 # Root Maven parent POM
-├── backend/
-│   ├── pom.xml                             # Backend Maven configuration
-│   └── src/main/java/com/project/platform/
-│       ├── PlatformApplication.java        # Main Spring Boot entry point
-│       ├── config/                         # SecurityConfig, CorsConfig
-│       ├── controller/                     # REST API Controllers
-│       │   ├── AdminUserController.java
-│       │   ├── AdminProjectController.java
-│       │   ├── AnalyticsController.java
-│       │   ├── AnnouncementController.java
-│       │   ├── AuthController.java
-│       │   ├── ProjectHealthController.java
-│       │   ├── RolePermissionController.java
-│       │   └── TeamMemberReviewController.java
-│       ├── dto/                            # Request & Response DTOs
-│       ├── entity/                         # Domain Entities & Enums
-│       ├── exception/                      # Exception Handling & Error responses
-│       ├── repository/                     # Spring Data JPA Repositories
-│       ├── security/                       # JWT Utils, UserDetailsService, Auth Filters
-│       ├── service/                        # Business Logic Interfaces & Implementations
-│       └── util/                           # Utilities & Seeders
-└── frontend/                               # React + Vite UI
-    ├── package.json
-    ├── vite.config.js
+STUDENT PROJECT COLLABORATION PLATFORM
+├── pom.xml                             # Root Maven POM (Project Orchestrator)
+├── README.md                           # Master Project Documentation
+├── walkthrough.md                      # Detailed Audit & Evaluation Log
+├── LICENSE                             # MIT Open Source License
+│
+├── backend/                            # Spring Boot Application
+│   ├── pom.xml                         # Backend Dependencies & Build Plugins
+│   └── src/
+│       ├── main/
+│       │   ├── java/com/project/platform/
+│       │   │   ├── PlatformApplication.java    # Spring Boot Main Class
+│       │   │   ├── config/                     # SecurityConfig, AdminSeeder
+│       │   │   ├── controller/                 # 18 REST API Controllers
+│       │   │   ├── dto/                        # Request & Response Records
+│       │   │   ├── entity/                     # 18 JPA Entities & Enums
+│       │   │   ├── exception/                  # GlobalExceptionHandler & Error DTOs
+│       │   │   ├── repository/                 # 18 Spring Data JPA Interfaces
+│       │   │   ├── security/                   # JwtUtil, CustomUserDetailsService, UserPrincipal
+│       │   │   └── service/                    # 18 Service Interfaces & Implementations
+│       │   └── resources/
+│       │       ├── application.yml             # MySQL Production Profile
+│       │       └── application-local.yml       # H2 Test & Local Profile
+│       └── test/                               # 18 Unit & Integration Test Classes
+│
+└── frontend/                           # React + Vite Application
+    ├── package.json                    # Dependencies & Scripts
+    ├── index.html                      # HTML5 Entry Point
     └── src/
-        ├── components/                     # Reusable UI components & layouts
-        ├── pages/                          # Admin Dashboard, Login, Management Views
-        └── services/                       # Axios API client setup & endpoint calls
+        ├── App.jsx                     # Route Definitions & Protected Route Guards
+        ├── main.jsx                    # React DOM Mounting
+        ├── layouts/
+        │   └── AppLayout.jsx           # Sidebar Navigation, Topbar & Mobile Drawer
+        ├── pages/                      # 11 Application Views
+        │   ├── LandingPage.jsx         # Public Workflow Overview
+        │   ├── Login.jsx               # Tabbed Login & Registration Modals
+        │   ├── Dashboard.jsx           # Overview Metrics & Quick Actions
+        │   ├── Projects.jsx            # Project Directory & Pitch Dialog
+        │   ├── Teams.jsx               # Team Roster, Join Queue & Skill Matcher
+        │   ├── Tasks.jsx               # Kanban Sprint Board & Resource Sharing
+        │   ├── Messages.jsx            # Channel & Direct Messaging
+        │   ├── Notifications.jsx       # Alert Stream
+        │   ├── Profile.jsx             # Student Portfolio & Skills Radar
+        │   ├── Faculty.jsx             # Mentorship, Rubrics & Sign-Offs
+        │   └── Admin.jsx               # User Directory & Health Radar
+        ├── services/                   # API Integration Modules
+        │   ├── adminService.js         # Auth, User Management & Analytics
+        │   ├── collaborationService.js # Tasks, Skill Matching, Chat & Files
+        │   ├── facultyService.js       # Evaluations, Rubrics & Feedback
+        │   └── projectService.js       # Projects, Roster & Notifications
+        └── styles/
+            └── global.css              # Unified Design System Stylesheet
 ```
 
 ---
 
-## 4. Database Schema
+## 🗄️ Database Design
 
-### Module-Owned Tables (Safe to add directly)
-- `announcements` — System and project announcements
-- `platform_analytics` — Historical analytics snapshots
-- `team_member_reviews` — Peer reviews and star ratings
-- `role_permissions` — Dynamic permissions matrix for roles
+The relational database is normalized (3NF) and contains **18 core tables**:
 
-### Placeholder Tables (Required for standalone execution)
-- `users` (includes `account_status` column)
-- `student_profiles`, `faculty_profiles`, `projects`, `project_members`, `tasks`, `project_progress`
+```mermaid
+erDiagram
+    users ||--o| student_profiles : "has"
+    users ||--o| faculty_profiles : "has"
+    users ||--o{ projects : "creates"
+    users ||--o{ project_members : "belongs_to"
+    users ||--o{ tasks : "assigned_to"
+    users ||--o{ messages : "sends/receives"
+    users ||--o{ notifications : "receives"
+    
+    projects ||--o{ project_members : "contains"
+    projects ||--o{ tasks : "has"
+    projects ||--|| project_progress : "tracks"
+    projects ||--o{ team_join_requests : "receives"
+    projects ||--o{ file_resources : "stores"
+    projects ||--o{ messages : "channels"
+    projects ||--o{ faculty_feedback : "mentored_by"
+    projects ||--o{ project_evaluations : "evaluated_by"
+    projects ||--o{ project_approvals : "approved_by"
+    projects ||--o{ announcements : "broadcasts"
+    projects ||--o{ team_member_reviews : "reviews"
+```
+
+### Key Tables & Schema Description
+
+| Table Name | Primary Key | Foreign Keys / Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `users` | `id` | `email` (UQ), `institutional_id` (UQ) | User credentials, role (`STUDENT`, `FACULTY`, `ADMIN`), and status |
+| `student_profiles` | `id` | `user_id` (UQ -> users.id) | Department, skills, bio, GitHub, and LinkedIn links |
+| `faculty_profiles` | `id` | `user_id` (UQ -> users.id) | Designation, department, and academic specialization |
+| `projects` | `id` | `created_by` (-> users.id) | Project title, description, skills, status, and max capacity (2–10) |
+| `project_members` | `id` | `project_id`, `student_id` | Team membership join table with role (`LEADER`, `MEMBER`) |
+| `tasks` | `id` | `project_id`, `assigned_to` | Sprint tasks with progress % and Kanban status |
+| `project_progress` | `id` | `project_id` (UQ -> projects.id) | Computed project progress and last activity heartbeat |
+| `team_join_requests`| `id` | `project_id`, `student_id` | Join applications with applicant notes and leader decision |
+| `file_resources` | `id` | `project_id`, `uploaded_by` | Uploaded project files and external documentation links |
+| `messages` | `id` | `project_id`, `sender_id`, `receiver_id` | Project room discussions and direct messages |
+| `notifications` | `id` | `user_id` | User-targeted alert stream items |
+| `faculty_feedback` | `id` | `project_id`, `faculty_id` | Mentorship review notes and 1–5 ratings |
+| `project_evaluations`| `id` | `project_id`, `faculty_id` | 5-criterion rubric scores (0–100) and computed letter grade |
+| `project_approvals` | `id` | `project_id`, `faculty_id` | Stage-gate status approvals (`APPROVED`, `REJECTED`, `CHANGES_REQUESTED`) |
+| `announcements` | `id` | `created_by`, `project_id` | System and campus broadcast notices |
+| `team_member_reviews`| `id`| `project_id`, `reviewer_id`, `reviewee_id` | Peer collaboration feedback and star ratings |
+| `platform_analytics`| `id` | — | Historical platform metrics snapshots |
+| `role_permissions` | `id` | — | Configurable permission mappings per role |
 
 ---
 
-## 5. API Endpoints Reference
+## 🌐 API Overview
 
-### Authentication & Setup
-| Method | Endpoint | Feature | Access |
-|---|---|---|---|
-| GET | `/api/auth/admin/status` | Check if initial admin account exists | Public |
-| POST | `/api/auth/admin/setup` | Create initial admin account | Public (First time) |
-| POST | `/api/auth/login` | General login | Public |
-| POST | `/api/auth/admin/login` | Admin dedicated login | Public |
-| POST | `/api/auth/student/login` | Student dedicated login | Public |
-| POST | `/api/auth/faculty/login` | Faculty dedicated login | Public |
-| POST | `/api/auth/register/student` | Register student profile | Public |
-| POST | `/api/auth/register/faculty` | Register faculty profile | Public |
+### 🔑 Authentication (`/api/auth`)
+| HTTP Method | Endpoint | Description | Access |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/auth/login` | General login (Institutional ID / Email) | Public |
+| `POST` | `/api/auth/student/login` | Student login portal | Public |
+| `POST` | `/api/auth/faculty/login` | Faculty login portal | Public |
+| `POST` | `/api/auth/admin/login` | Admin login portal | Public |
+| `POST` | `/api/auth/register/student` | Register new student profile | Public |
+| `POST` | `/api/auth/register/faculty` | Register new faculty profile | Public |
 
-### User Management & Roles (Features 1 & 3)
-| Method | Endpoint | Feature | Access |
-|---|---|---|---|
-| GET | `/api/admin/users` | List all users (paginated) | ADMIN |
-| GET | `/api/admin/users/students` | List student profiles | ADMIN |
-| GET | `/api/admin/users/faculty` | List faculty profiles | ADMIN |
-| GET | `/api/admin/users/{userId}` | Get single user details | ADMIN |
-| PATCH | `/api/admin/users/{userId}/status` | Update account status (ACTIVE/SUSPENDED) | ADMIN |
-| PATCH | `/api/admin/users/{userId}/role` | Update user role | ADMIN |
-| DELETE | `/api/admin/users/{userId}` | Delete user record | ADMIN |
-| GET | `/api/admin/roles/permissions` | Get all role permission mappings | ADMIN |
-| GET | `/api/admin/roles/{role}/permissions` | Get permissions for specific role | ADMIN |
-| PUT | `/api/admin/roles/{role}/permissions` | Update permission list for a role | ADMIN |
+### 🚀 Projects & Teams (`/api/projects`, `/api/teams`)
+| HTTP Method | Endpoint | Description | Access |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/projects` | Filter and paginate campus projects | Public / Student |
+| `POST` | `/api/projects` | Pitch a new project with capacity | Student / Faculty |
+| `GET` | `/api/projects/{id}` | Get project details and team roster | Public / Authenticated |
+| `POST` | `/api/projects/{id}/join-requests` | Submit application to join a project | Student |
+| `PATCH` | `/api/projects/{id}/join-requests/{reqId}` | Accept or reject a join request | Project Leader |
+| `GET` | `/api/teams/match-candidates/{projId}` | Get smart candidate recommendations | Authenticated |
+| `GET` | `/api/teams/match-projects` | Get smart project recommendations | Authenticated |
 
-### Project Management & Health (Features 2 & 6)
-| Method | Endpoint | Feature | Access |
-|---|---|---|---|
-| GET | `/api/admin/projects` | List all projects | ADMIN |
-| GET | `/api/admin/projects/{projectId}` | Get project details | ADMIN |
-| PATCH | `/api/admin/projects/{projectId}/status` | Force update project status | ADMIN |
-| DELETE | `/api/admin/projects/{projectId}` | Delete project | ADMIN |
-| GET | `/api/admin/projects/health/flagged` | Get delayed or inactive projects | ADMIN |
+### 📋 Sprint Workspace (`/api/tasks`, `/api/files`, `/api/messages`)
+| HTTP Method | Endpoint | Description | Access |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/tasks/project/{projectId}` | Get sprint tasks for a project | Authenticated |
+| `POST` | `/api/tasks` | Create a new sprint task | Authenticated |
+| `PATCH` | `/api/tasks/{id}/status` | Update task status (`TODO`/`IN_PROGRESS`/`COMPLETED`) | Authenticated |
+| `POST` | `/api/files/upload` | Upload document or diagram | Authenticated |
+| `POST` | `/api/files/resource` | Add Git repository or link | Authenticated |
+| `POST` | `/api/messages` | Send project channel or direct message | Authenticated |
 
-### Platform Analytics (Feature 4)
-| Method | Endpoint | Feature | Access |
-|---|---|---|---|
-| GET | `/api/analytics/live` | Get live real-time platform metrics | ADMIN |
-| POST | `/api/analytics/snapshot` | Trigger historical analytics snapshot | ADMIN |
-| GET | `/api/analytics/snapshot/latest` | Retrieve latest analytics snapshot | ADMIN |
+### 🎓 Faculty Mentorship (`/api/faculty`)
+| HTTP Method | Endpoint | Description | Access |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/faculty/projects/{id}/progress` | Monitor project velocity and progress | Faculty / Admin |
+| `POST` | `/api/faculty/projects/{id}/feedback` | Submit mentorship review and rating | Faculty / Admin |
+| `POST` | `/api/faculty/projects/{id}/evaluations`| Submit 5-dimension rubric score | Faculty / Admin |
+| `POST` | `/api/faculty/projects/{id}/approval` | Submit project milestone approval | Faculty / Admin |
 
-### System Announcements (Feature 5)
-| Method | Endpoint | Feature | Access |
-|---|---|---|---|
-| POST | `/api/announcements` | Create/broadcast announcement | ADMIN |
-| GET | `/api/announcements` | Get all broadcast announcements | Authenticated |
-| GET | `/api/announcements/project/{projectId}` | Get project-specific announcements | Authenticated |
-| GET | `/api/announcements/{id}` | Get announcement by ID | Authenticated |
-| DELETE | `/api/announcements/{id}` | Delete announcement | ADMIN |
-
-### Peer Reviews & Ratings (Feature 7)
-| Method | Endpoint | Feature | Access |
-|---|---|---|---|
-| POST | `/api/reviews` | Submit peer review for team member | STUDENT |
-| GET | `/api/reviews/project/{projectId}` | Get reviews for a project | STUDENT/FACULTY/ADMIN |
-| GET | `/api/reviews/student/{studentUserId}/summary` | Get rating summary for a student | STUDENT/FACULTY/ADMIN |
+### 🛡️ Admin & Analytics (`/api/admin`, `/api/analytics`, `/api/announcements`)
+| HTTP Method | Endpoint | Description | Access |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/admin/users` | List and paginate all users | Admin |
+| `PATCH` | `/api/admin/users/{id}/status` | Update user status (`ACTIVE`/`SUSPENDED`)| Admin |
+| `GET` | `/api/admin/projects/health/flagged` | View delayed or inactive projects | Admin |
+| `GET` | `/api/analytics/live` | View live platform metrics | Admin |
+| `POST` | `/api/announcements` | Broadcast campus announcement | Admin |
 
 ---
 
-## 6. Shared Files & Merge Guidelines
+## ⚙️ Installation Steps
 
-When integrating into the main project repo:
-1. **`entity/User.java`**: Ensure `accountStatus` (ACTIVE / SUSPENDED / DEACTIVATED) is supported in the team's shared user entity.
-2. **`config/SecurityConfig.java`**: Merge route permissions into the existing team security configuration.
-3. **`exception/GlobalExceptionHandler.java`**: Combine exception handlers into the common exception handling infrastructure.
-4. **JWT Configuration**: Set `JWT_SECRET` in application properties/environment variables for JWT signing and verification.
-
----
-
-## 7. Example API Requests & Responses
-
-### Suspend a Student Account
-```http
-PATCH /api/admin/users/42/status
-Authorization: Bearer <admin-jwt>
-Content-Type: application/json
-
-{ "accountStatus": "SUSPENDED" }
-```
-```json
-{
-  "success": true,
-  "message": "Account status updated",
-  "data": {
-    "id": 42,
-    "name": "Jane Doe",
-    "email": "jane@example.edu",
-    "role": "STUDENT",
-    "accountStatus": "SUSPENDED",
-    "createdAt": "2026-01-10T09:15:00"
-  }
-}
-```
-
-### Post System Announcement
-```http
-POST /api/announcements
-Authorization: Bearer <admin-jwt>
-Content-Type: application/json
-
-{
-  "title": "Midterm Checkpoint",
-  "content": "All teams must complete project milestones by Friday.",
-  "scope": "STUDENTS"
-}
-```
-```json
-{
-  "success": true,
-  "message": "Announcement sent",
-  "data": {
-    "id": 7,
-    "title": "Midterm Checkpoint",
-    "content": "All teams must complete project milestones by Friday.",
-    "scope": "STUDENTS",
-    "projectId": null,
-    "createdBy": 1,
-    "createdAt": "2026-09-02T10:00:00"
-  }
-}
-```
+### Prerequisites
+- **Java JDK**: Version 17+
+- **Node.js**: Version 18+ and npm
+- **Apache Maven**: Version 3.8+
+- **MySQL Server**: Version 8.0+
 
 ---
 
-## 8. Frontend Administration Application
+### 1. Database Setup
 
-The React frontend provides a comprehensive UI dashboard for administrators:
-- **Authentication**: Setup wizard & login with auto JWT persistence.
-- **User & Role Management**: Interactive data tables to enable/suspend accounts and adjust role permissions.
-- **Project Oversight**: Filterable table of active, completed, delayed, and inactive projects.
-- **Broadcast System**: Easy-to-use form to broadcast announcements to targeted groups.
-- **Real-Time Analytics**: Visual cards displaying platform metrics and project health checks.
+1. Start your local MySQL service.
+2. Create the database schema:
+   ```sql
+   CREATE DATABASE student_platform CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+   ```
+
+---
+
+### 2. Backend Setup (Spring Boot)
+
+1. Navigate to the backend folder:
+   ```bash
+   cd backend
+   ```
+2. Configure your database credentials in `src/main/resources/application.yml` or set environment variables:
+   ```yaml
+   spring:
+     datasource:
+       url: jdbc:mysql://localhost:3306/student_platform?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+       username: your_mysql_username
+       password: your_mysql_password
+   ```
+3. Compile and launch the Spring Boot application:
+   ```bash
+   mvn clean spring-boot:run
+   ```
+4. The backend server will start at `http://localhost:8080`. Sample seed data will automatically be populated on initial startup.
+
+---
+
+### 3. Frontend Setup (React + Vite)
+
+1. Open a new terminal and navigate to the frontend folder:
+   ```bash
+   cd frontend
+   ```
+2. Install npm dependencies:
+   ```bash
+   npm install
+   ```
+3. Start the Vite development server:
+   ```bash
+   npm run dev
+   ```
+4. Open your browser and navigate to `http://localhost:5173`.
+
+---
+
+## 🔑 Environment Variables
+
+### Backend Configuration (`application.yml` / Shell Environment)
+
+| Variable | Description | Example / Placeholder |
+| :--- | :--- | :--- |
+| `DB_HOST` | MySQL Server Hostname | `localhost` |
+| `DB_PORT` | MySQL Server Port | `3306` |
+| `DB_NAME` | Database Name | `student_platform` |
+| `DB_USERNAME` | Database Username | `your_db_username` |
+| `DB_PASSWORD` | Database Password | `your_db_password` |
+| `JWT_SECRET` | Secret Key for Signing JWT Tokens (256-bit min) | `your_secure_jwt_secret_key_here` |
+| `JWT_EXPIRATION_MS`| JWT Expiration Duration in Milliseconds | `86400000` (24 Hours) |
+| `SPRING_PROFILES_ACTIVE`| Active Profile (`local` for H2, `prod` for MySQL) | `local` |
+
+### Frontend Configuration (`.env`)
+
+| Variable | Description | Example / Placeholder |
+| :--- | :--- | :--- |
+| `VITE_API_BASE_URL` | Backend REST API Base URL | `http://localhost:8080` |
+
+---
+
+## 🧪 Demonstration & Seed Accounts
+
+The platform comes pre-configured with sample accounts for demonstration and evaluation purposes:
+
+| Role | Institutional ID | Email | Password Note |
+| :--- | :--- | :--- | :--- |
+| **Student (Project Leader)** | `STU10001` | `ananya@college.edu` | Configured during initial seeding *(change before deployment)* |
+| **Student (Contributor)** | `STU10006` | `devika@college.edu` | Configured during initial seeding *(change before deployment)* |
+| **Faculty Mentor** | `FAC10001` | `meera@college.edu` | Configured during initial seeding *(change before deployment)* |
+| **Platform Administrator** | `ADM10001` | `admin@college.edu` | Configured during initial seeding *(change before deployment)* |
+
+---
+
+## 📸 Screenshots
+
+*(Add your application screenshots here)*
+
+- **Landing Page**: Public portal showcasing project collaboration workflows.
+- **Login & Registration**: Role-segregated login and student/faculty onboarding dialogs.
+- **Student Dashboard**: Live summary of joined teams, pending requests, and smart recommendations.
+- **Project Directory**: Campus project listings with search, skill tags, and seat counters.
+- **Sprint Workspace & Kanban Board**: 3-column sprint task management with velocity progress bars.
+- **Faculty Dashboard & Rubrics**: Project monitoring radar and 5-criteria grading form.
+- **Admin Management Console**: User moderation table, broadcast system, and delayed sprint alerts.
+
+---
+
+## 🚀 Deployment
+
+The project can be deployed across modern cloud hosting providers:
+
+| Layer | Recommended Provider | Build / Start Command | Output Directory |
+| :--- | :--- | :--- | :--- |
+| **Frontend** | [Vercel](https://vercel.com/) / [Netlify](https://www.netlify.com/) | `npm run build` | `dist` |
+| **Backend** | [Render](https://render.com/) / [AWS EC2](https://aws.amazon.com/) / [Docker](https://www.docker.com/) | `mvn clean package -DskipTests` | `target/platform-0.0.1-SNAPSHOT.jar` |
+| **Database** | [MySQL](https://www.mysql.com/) / [AWS RDS](https://aws.amazon.com/rds/) / [Aiven](https://aiven.io/) | — | Port `3306` |
+
+---
+
+## 🔮 Future Enhancements
+
+- 🔴 **Real-Time WebSockets**: Upgrade direct chat and Kanban card transitions to live STOMP/WebSocket streams.
+- ☁️ **Cloud Storage Integration**: Connect Amazon S3 or Google Cloud Storage for scalable document uploads.
+- 📅 **Calendar & Viva Scheduling**: Integration with Google Calendar for faculty viva and milestone review meetings.
+- 📱 **Mobile Responsive App**: Native mobile app using React Native for push notifications and on-the-go discussions.
+
+---
+
+## 👥 Contributors & Team Members
+
+| Name | Module Assignment | Key Responsibilities | Features Owned |
+| :--- | :--- | :--- | :---: |
+| **Salwa** | **Member 1 – Student Profile & Projects** | Student Profiles, Project Pitching, Campus Project Search, Join Requests & Notifications | **5 Features** |
+| **Shibla** | **Member 2 – Team Collaboration** | Smart Skill Matching, Sprint Progress Tracking, Kanban Tasks, Chat & File Sharing | **5 Features** |
+| **Jasil** | **Member 3 – Faculty Module** | Faculty Profiles, Project Browsing, Velocity Monitoring, Mentorship Feedback & Rubric Evaluations | **5 Features** |
+| **Rachel** | **Member 4 – Admin & System** | Student/Faculty Management, Project Moderation, RBAC Permissions, Analytics, Announcements, Health Radar & Peer Reviews | **7 Features** |
+
+**Project Guide / Faculty Mentor:**
+- **Department of Computer Science & Engineering**
+
+---
+
+## 📄 License
+
+This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.

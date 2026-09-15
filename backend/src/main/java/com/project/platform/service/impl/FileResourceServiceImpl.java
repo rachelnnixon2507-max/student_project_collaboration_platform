@@ -213,7 +213,11 @@ public class FileResourceServiceImpl implements FileResourceService {
             return FileResourceType.DOCUMENT;
         } else if (lower.endsWith(".java") || lower.endsWith(".py") || lower.endsWith(".js") || lower.endsWith(".ts") || lower.endsWith(".jsx") || lower.endsWith(".tsx") || lower.endsWith(".cpp") || lower.endsWith(".c") || lower.endsWith(".html") || lower.endsWith(".css") || lower.endsWith(".sql")) {
             return FileResourceType.CODE;
-        } else if (lower.endsWith(".png") || lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".svg") || lower.endsWith(".drawio")) {
+        } else if (lower.endsWith(".mp4") || lower.endsWith(".mov") || lower.endsWith(".avi") || lower.endsWith(".mkv") || lower.endsWith(".webm")) {
+            return FileResourceType.VIDEO;
+        } else if (lower.endsWith(".png") || lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".gif") || lower.endsWith(".webp")) {
+            return FileResourceType.IMAGE;
+        } else if (lower.endsWith(".svg") || lower.endsWith(".drawio") || lower.endsWith(".diagram")) {
             return FileResourceType.DIAGRAM;
         } else if (lower.endsWith(".csv") || lower.endsWith(".json") || lower.endsWith(".xlsx") || lower.endsWith(".xml")) {
             return FileResourceType.DATASET;

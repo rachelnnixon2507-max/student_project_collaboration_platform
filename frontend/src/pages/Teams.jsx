@@ -424,8 +424,16 @@ export default function Teams() {
                         <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>
                           Team Roster ({memberCount} / {maxMembers} Members)
                         </span>
-                        <span className={`badge ${availableSeats > 0 ? 'badge-seats' : 'badge-seats-full'}`}>
-                          {availableSeats > 0 ? `${availableSeats} seat${availableSeats > 1 ? 's' : ''} remaining` : 'Team Full'}
+                        <span
+                          className={`badge ${availableSeats > 0 ? 'badge-seats' : 'badge-seats-full'}`}
+                          style={availableSeats === 0 ? {
+                            background: 'rgba(0, 255, 157, 0.15)',
+                            color: 'var(--neon-emerald)',
+                            border: '1px solid rgba(0, 255, 157, 0.45)',
+                            fontWeight: 700
+                          } : {}}
+                        >
+                          {availableSeats > 0 ? `${availableSeats} seat${availableSeats > 1 ? 's' : ''} remaining` : '✓ FULLY OCCUPIED (4/4)'}
                         </span>
                       </div>
 

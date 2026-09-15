@@ -100,6 +100,13 @@ export async function inviteCandidateToProject(projectId, candidateStudentId, me
   });
 }
 
+export async function respondToInvitation(projectId, notificationId, accept = true, message = '') {
+  return authFetch('/api/teams/respond-invitation', {
+    method: 'POST',
+    body: JSON.stringify({ projectId, notificationId, accept, message }),
+  });
+}
+
 // ----------------------------------------------------------------------
 // 4. Team Chat & Direct Messaging
 // ----------------------------------------------------------------------
